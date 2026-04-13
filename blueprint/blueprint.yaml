@@ -1,0 +1,75 @@
+# NemoClaw Blueprint Manifest
+# https://docs.nemoclaw.dev/blueprints/manifest
+apiVersion: nemoclaw.dev/v1alpha1
+kind: Blueprint
+
+metadata:
+  name: loomstack
+  version: "0.1.0"
+  description: "Single-repo AI task orchestration — plan-to-PR dispatch via tiered claude-code workers"
+
+spec:
+  # OCI image built from Dockerfile in this directory
+  image:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+  # Blueprint entry point (matches ENTRYPOINT in Dockerfile)
+  entrypoint: ["python", "-m", "loomstack.runner"]
+
+  # Commands exposed to `nemoclaw loomstack <cmd>`
+  commands:
+    - name: init
+      description: "Scaffold 4-file project structure in cwd"
+    - name: parse
+      description: "Validate PLAN.md and show task graph"
+    - name: run
+      description: "Dispatch ready tasks to worker tiers"
+      flags:
+        - name: once
+          type: bool
+          description: "Run one cycle then exit"
+    - name: status
+      description: "Show task graph with current state"
+    - name: approve
+      description: "Unblock architect gate for a task"
+      args: ["task_id"]
+    - name: escalate
+      description: "Force-promote a task to architect tier"
+      args: ["task_id"]
+    - name: cost
+      description: "Show spend breakdown"
+      flags:
+        - name: since
+          type: string
+          description: "Lookback window, e.g. 7d"
+    - name: doctor
+      description: "Health-check endpoints; verify NIM-free routing"
+    - name: bootstrap
+      description: "Print BOOTSTRAP_PROMPT.md to stdout"
+
+  # Mounts provided by NemoClaw at runtime
+  mounts:
+    - name: repo
+      mountPath: /repo
+      description: "The managed project repo (cwd when user runs nemoclaw loomstack)"
+    - name: nemoclaw-config
+      mountPath: /etc/nemoclaw
+      description: "NemoClaw config dir (~/.nemoclaw)"
+
+  # Environment variables NemoClaw must inject
+  env:
+    - name: REPO_PATH
+      value: "/repo"
+    - name: NEMOCLAW_CONFIG_PATH
+      value: "/etc/nemoclaw"
+    - name: LOOMSTACK_LOG_LEVEL
+      default: "INFO"
+
+  # Approval gates — these pause dispatch and wait for human marker files
+  approvalGates:
+    - name: architect
+      description: "All architect-tier tasks require explicit approval"
+      trigger: "task.role == 'architect'"
+      markerPath: ".loomstack/approvals/{task_id}"
