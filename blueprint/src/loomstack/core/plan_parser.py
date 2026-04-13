@@ -312,7 +312,8 @@ class PlanParseError(Exception):
 
 def _parse_task_block(task_id: str, description: str, yaml_body: str) -> Task:
     try:
-        data: dict[str, Any] = yaml.safe_load(yaml_body) or {}
+        _raw = next(yaml.safe_load_all(yaml_body), None)
+        data: dict[str, Any] = _raw if isinstance(_raw, dict) else {}
     except yaml.YAMLError as exc:
         raise PlanParseError(
             f"task {task_id}: invalid YAML block — {exc}"
