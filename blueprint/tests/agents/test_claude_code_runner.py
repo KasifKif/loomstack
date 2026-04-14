@@ -293,7 +293,7 @@ class TestRunClaudeCode:
         mock_proc.wait = AsyncMock(return_value=-1)
         mock_proc.kill = MagicMock()
 
-        async def _hanging_stream(stream, log_fh, ring, ring_size):  # type: ignore[no-untyped-def]
+        async def _hanging_stream(stream, log_fh, ring):  # type: ignore[no-untyped-def]
             await asyncio.sleep(9999)
 
         with (

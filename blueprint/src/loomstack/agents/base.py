@@ -57,6 +57,7 @@ class TaskContext:
     retry_count: int = 0
     prior_error: str | None = None
     prior_diff: str | None = None
+    extra_context_files: list[Path] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

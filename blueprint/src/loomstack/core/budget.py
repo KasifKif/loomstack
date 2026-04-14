@@ -267,14 +267,16 @@ class Budget:
             self._day = today
             self._tier_spent = {}
             self._global_spent = 0.0
-            self._reload_from_ledger_locked()
+            await self._reload_from_ledger_locked()
 
     async def _reload_from_ledger(self) -> None:
         async with self._lock:
-            self._reload_from_ledger_locked()
+            await self._reload_from_ledger_locked()
 
-    def _reload_from_ledger_locked(self) -> None:
-        """Read ledger for current day. Must hold _lock."""
-        tier_spent, global_spent = _read_ledger_sync(self._ledger_path, self._day)
+    async def _reload_from_ledger_locked(self) -> None:
+        """Read ledger for current day via thread pool. Must hold _lock."""
+        tier_spent, global_spent = await asyncio.to_thread(
+            _read_ledger_sync, self._ledger_path, self._day
+        )
         self._tier_spent = tier_spent
         self._global_spent = global_spent
