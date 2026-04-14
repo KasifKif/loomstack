@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from loomstack.core.budget import Budget, BudgetExceededError, _read_ledger_sync
+from loomstack.core.budget import Budget, BudgetExceeded, _read_ledger_sync
 from loomstack.core.config import BudgetConfig
 
 # ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ class TestReadLedger:
 
     def test_reads_today_charges(self, tmp_path: Path) -> None:
         path = tmp_path / "ledger.jsonl"
-        today = date.today()
+        today = datetime.now(tz=UTC).date()
         ts = datetime(today.year, today.month, today.day, 10, 0, tzinfo=timezone.utc).isoformat()
         write_ledger(
             path,
@@ -129,7 +129,7 @@ class TestReadLedger:
 
     def test_ignores_non_charge_entries(self, tmp_path: Path) -> None:
         path = tmp_path / "ledger.jsonl"
-        today = date.today()
+        today = datetime.now(tz=UTC).date()
         ts = datetime(today.year, today.month, today.day, tzinfo=timezone.utc).isoformat()
         write_ledger(
             path,
@@ -160,43 +160,39 @@ class TestBudgetCheck:
 
     async def test_check_passes_under_cap(self, tmp_path: Path) -> None:
         b = await self._make(tmp_path, tier_caps={"code_worker": 5.0})
-        await b.check("code_worker", 1.0, "T-001")  # should not raise
+        assert await b.check("code_worker", 1.0, "T-001") is None
 
     async def test_check_passes_no_cap(self, tmp_path: Path) -> None:
         b = await self._make(tmp_path)
-        await b.check("code_worker", 999.0, "T-001")  # no cap set
+        assert await b.check("code_worker", 999.0, "T-001") is None
 
-    async def test_check_raises_tier_cap(self, tmp_path: Path) -> None:
+    async def test_check_returns_exceeded_tier_cap(self, tmp_path: Path) -> None:
         b = await self._make(tmp_path, tier_caps={"code_worker": 1.0})
         await b.charge("code_worker", 0.80, "T-001")
-        with pytest.raises(BudgetExceededError) as exc_info:
-            await b.check("code_worker", 0.30, "T-002")
-        err = exc_info.value
-        assert err.tier == "code_worker"
-        assert err.cap_usd == 1.0
-        assert err.spent_usd == pytest.approx(0.80)
+        result = await b.check("code_worker", 0.30, "T-002")
+        assert isinstance(result, BudgetExceeded)
+        assert result.tier == "code_worker"
+        assert result.cap_usd == 1.0
+        assert result.spent_usd == pytest.approx(0.80)
 
-    async def test_check_raises_global_cap(self, tmp_path: Path) -> None:
+    async def test_check_returns_exceeded_global_cap(self, tmp_path: Path) -> None:
         b = await self._make(tmp_path, global_cap=1.0)
         await b.charge("code_worker", 0.70, "T-001")
         await b.charge("architect", 0.20, "T-002")
-        with pytest.raises(BudgetExceededError) as exc_info:
-            await b.check("reviewer", 0.20, "T-003")
-        err = exc_info.value
-        assert err.cap_usd == 1.0
-        assert err.spent_usd == pytest.approx(0.90)
+        result = await b.check("reviewer", 0.20, "T-003")
+        assert isinstance(result, BudgetExceeded)
+        assert result.cap_usd == 1.0
+        assert result.spent_usd == pytest.approx(0.90)
 
     async def test_check_exact_cap_passes(self, tmp_path: Path) -> None:
         b = await self._make(tmp_path, tier_caps={"code_worker": 1.0})
         await b.charge("code_worker", 0.70, "T-001")
-        # exactly at cap after charging — estimating 0.30 brings total to exactly 1.0
-        await b.check("code_worker", 0.30, "T-002")  # should not raise (not strictly >)
+        assert await b.check("code_worker", 0.30, "T-002") is None
 
-    async def test_check_exceeds_exact_cap_raises(self, tmp_path: Path) -> None:
+    async def test_check_exceeds_exact_cap_returns_exceeded(self, tmp_path: Path) -> None:
         b = await self._make(tmp_path, tier_caps={"code_worker": 1.0})
         await b.charge("code_worker", 0.70, "T-001")
-        with pytest.raises(BudgetExceededError):
-            await b.check("code_worker", 0.31, "T-002")
+        assert isinstance(await b.check("code_worker", 0.31, "T-002"), BudgetExceeded)
 
 
 # ---------------------------------------------------------------------------
@@ -216,7 +212,7 @@ class TestBudgetCharge:
     async def test_charge_writes_ledger(self, tmp_path: Path) -> None:
         ledger = tmp_path / "ledger.jsonl"
         b = await Budget.create(make_config(), ledger)
-        await b.charge("architect", 0.12, "T-007")
+        await b.charge("architect", 0.12, "T-007", model="qwen3-coder", tokens_in=100, tokens_out=50)
         lines = ledger.read_text().strip().splitlines()
         assert len(lines) == 1
         entry = json.loads(lines[0])
@@ -224,6 +220,9 @@ class TestBudgetCharge:
         assert entry["task_id"] == "T-007"
         assert entry["usd"] == pytest.approx(0.12)
         assert entry["type"] == "charge"
+        assert entry["model"] == "qwen3-coder"
+        assert entry["tokens_in"] == 100
+        assert entry["tokens_out"] == 50
 
     async def test_charge_accumulates(self, tmp_path: Path) -> None:
         b = await Budget.create(make_config(), tmp_path / "ledger.jsonl")
@@ -267,7 +266,7 @@ class TestBudgetDailySpend:
 class TestBudgetStartupLoad:
     async def test_loads_existing_ledger(self, tmp_path: Path) -> None:
         ledger = tmp_path / "ledger.jsonl"
-        today = date.today()
+        today = datetime.now(tz=UTC).date()
         ts = datetime(today.year, today.month, today.day, tzinfo=timezone.utc).isoformat()
         write_ledger(
             ledger,
@@ -283,7 +282,7 @@ class TestBudgetStartupLoad:
 
     async def test_check_uses_loaded_spend(self, tmp_path: Path) -> None:
         ledger = tmp_path / "ledger.jsonl"
-        today = date.today()
+        today = datetime.now(tz=UTC).date()
         ts = datetime(today.year, today.month, today.day, tzinfo=timezone.utc).isoformat()
         write_ledger(
             ledger,
@@ -292,8 +291,7 @@ class TestBudgetStartupLoad:
         b = await Budget.create(
             make_config(tier_caps={"code_worker": 1.0}), ledger
         )
-        with pytest.raises(BudgetExceededError):
-            await b.check("code_worker", 0.20, "T-002")
+        assert isinstance(await b.check("code_worker", 0.20, "T-002"), BudgetExceeded)
 
 
 # ---------------------------------------------------------------------------
@@ -310,7 +308,7 @@ class TestBudgetRollover:
 
         # Simulate midnight rollover by patching _utc_today
         from datetime import timedelta
-        tomorrow = date.today() + timedelta(days=1)
+        tomorrow = datetime.now(tz=UTC).date() + timedelta(days=1)
         with patch("loomstack.core.budget._utc_today", return_value=tomorrow):
             assert await b.daily_spend() == 0.0
 
@@ -322,31 +320,30 @@ class TestBudgetRollover:
         await b.charge("code_worker", 0.90, "T-001")
 
         from datetime import timedelta
-        tomorrow = date.today() + timedelta(days=1)
+        tomorrow = datetime.now(tz=UTC).date() + timedelta(days=1)
         with patch("loomstack.core.budget._utc_today", return_value=tomorrow):
-            # After rollover, cap resets — no exception
-            await b.check("code_worker", 0.80, "T-002")
+            assert await b.check("code_worker", 0.80, "T-002") is None
 
 
 # ---------------------------------------------------------------------------
-# BudgetExceededError
+# BudgetExceeded
 # ---------------------------------------------------------------------------
 
 
-class TestBudgetExceededError:
+class TestBudgetExceeded:
     def test_fields(self) -> None:
         resets_at = datetime(2026, 4, 14, tzinfo=timezone.utc)
-        err = BudgetExceededError(
+        exc = BudgetExceeded(
             tier="architect",
             cap_usd=2.0,
             spent_usd=1.80,
             estimated_usd=0.30,
             resets_at=resets_at,
         )
-        assert err.tier == "architect"
-        assert err.cap_usd == 2.0
-        assert err.spent_usd == 1.80
-        assert err.estimated_usd == 0.30
-        assert err.resets_at == resets_at
-        assert "architect" in str(err)
-        assert "2.0" in str(err)
+        assert exc.tier == "architect"
+        assert exc.cap_usd == 2.0
+        assert exc.spent_usd == 1.80
+        assert exc.estimated_usd == 0.30
+        assert exc.resets_at == resets_at
+        assert "architect" in str(exc)
+        assert "2.0" in str(exc)

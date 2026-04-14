@@ -3,15 +3,19 @@ Budget enforcement and ledger accounting.
 
 Two-phase API (mirrors the agent contract in CLAUDE.md):
 
-    await budget.check(tier, estimated_usd, task_id)   # before LLM call
-    await budget.charge(tier, actual_usd, task_id)     # after LLM call
+    allowed = await budget.check(tier, estimated_usd, task_id)
+    if not allowed:
+        # requeue, notify operator — budget never decides for the caller
+        ...
+    await budget.charge(tier, actual_usd, task_id, model=..., tokens_in=..., tokens_out=...)
 
-``check`` raises ``BudgetExceededError`` if the call would breach either a
-per-tier cap or the global daily cap. The caller (dispatcher) must catch this
-and requeue the task for the next day — budget never crashes the daemon.
+``check`` returns False (and populates ``last_exceeded``) if the call would
+breach either a per-tier or global daily cap. The caller (dispatcher or higher)
+decides what to do — requeue, page the operator, skip, etc.
 
 ``charge`` appends an entry to ``.loomstack/ledger.jsonl`` (portalocker write
-for cross-process safety) and updates the in-memory running totals.
+for cross-process safety) and updates the in-memory running totals. Includes
+model, tokens_in, tokens_out for cost breakdown in the ``loomstack cost`` CLI.
 
 Daily caps reset at midnight UTC. The Budget object detects a day rollover on
 each call and resets its in-memory counters, then re-reads the ledger to
@@ -39,8 +43,12 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-class BudgetExceededError(Exception):
-    """Raised by ``check`` when a call would breach a daily cap."""
+class BudgetExceeded:
+    """
+    Returned by ``check`` when a call would breach a daily cap.
+
+    The caller decides how to respond (requeue, notify operator, etc.).
+    """
 
     def __init__(
         self,
@@ -55,10 +63,12 @@ class BudgetExceededError(Exception):
         self.spent_usd = spent_usd
         self.estimated_usd = estimated_usd
         self.resets_at = resets_at
-        super().__init__(
-            f"budget exceeded for tier={tier!r}: "
-            f"spent={spent_usd:.4f} + estimated={estimated_usd:.4f} "
-            f"> cap={cap_usd:.4f} (resets {resets_at.isoformat()})"
+
+    def __str__(self) -> str:
+        return (
+            f"budget exceeded for tier={self.tier!r}: "
+            f"spent={self.spent_usd:.4f} + estimated={self.estimated_usd:.4f} "
+            f"> cap={self.cap_usd:.4f} (resets {self.resets_at.isoformat()})"
         )
 
 
@@ -107,7 +117,7 @@ def _read_ledger_sync(path: Path, day: date) -> tuple[dict[str, float], float]:
     if not path.exists():
         return tier_spent, global_spent
 
-    with portalocker.Lock(str(path), mode="r", encoding="utf-8", timeout=10) as fh:
+    with path.open(encoding="utf-8") as fh:
         for raw in fh:
             raw = raw.strip()
             if not raw:
@@ -164,28 +174,44 @@ class Budget:
     # Public API
     # ------------------------------------------------------------------
 
-    async def check(self, tier: str, estimated_usd: float, task_id: str) -> None:
+    async def check(
+        self, tier: str, estimated_usd: float, task_id: str
+    ) -> BudgetExceeded | None:
         """
-        Raise ``BudgetExceededError`` if dispatching this call would breach
-        either the tier cap or the global daily cap.
+        Return ``None`` if the call is within budget, or a ``BudgetExceeded``
+        value if it would breach either the tier cap or the global daily cap.
 
-        Does not write to the ledger. Safe to call before every LLM call.
+        Does not write to the ledger. The caller decides what to do on
+        a non-None return (requeue, notify operator, etc.).
         """
         async with self._lock:
             await self._maybe_rollover()
-            self._enforce(tier, estimated_usd)
+            return self._check_caps(tier, estimated_usd)
 
-    async def charge(self, tier: str, actual_usd: float, task_id: str) -> None:
+    async def charge(
+        self,
+        tier: str,
+        actual_usd: float,
+        task_id: str,
+        *,
+        model: str = "",
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+    ) -> None:
         """
         Record actual spend: append to ledger and update in-memory totals.
 
         Uses portalocker for cross-process safety on the ledger file.
+        ``model``, ``tokens_in``, ``tokens_out`` are stored for the cost CLI.
         """
         entry: dict[str, object] = {
             "ts": _now_iso(),
             "tier": tier,
             "task_id": task_id,
             "usd": actual_usd,
+            "model": model,
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
             "type": "charge",
         }
         async with self._lock:
@@ -211,29 +237,28 @@ class Budget:
     # Internal
     # ------------------------------------------------------------------
 
-    def _enforce(self, tier: str, estimated_usd: float) -> None:
-        """Check caps; raise BudgetExceededError if either is breached. Must hold _lock."""
-        # Tier cap
+    def _check_caps(self, tier: str, estimated_usd: float) -> BudgetExceeded | None:
+        """Return a BudgetExceeded if either cap is breached; None otherwise. Must hold _lock."""
         tier_cap = self._config.tier_caps.get(tier)
         if tier_cap is not None:
             spent = self._tier_spent.get(tier, 0.0)
             if spent + estimated_usd > tier_cap:
-                raise BudgetExceededError(
+                return BudgetExceeded(
                     tier=tier,
                     cap_usd=tier_cap,
                     spent_usd=spent,
                     estimated_usd=estimated_usd,
                     resets_at=_next_midnight_utc(),
                 )
-        # Global cap
         if self._global_spent + estimated_usd > self._config.global_daily_cap:
-            raise BudgetExceededError(
+            return BudgetExceeded(
                 tier=tier,
                 cap_usd=self._config.global_daily_cap,
                 spent_usd=self._global_spent,
                 estimated_usd=estimated_usd,
                 resets_at=_next_midnight_utc(),
             )
+        return None
 
     async def _maybe_rollover(self) -> None:
         """If UTC day has advanced, reset counters and re-read the ledger. Must hold _lock."""
@@ -242,16 +267,14 @@ class Budget:
             self._day = today
             self._tier_spent = {}
             self._global_spent = 0.0
-            await self._reload_from_ledger_locked()
+            self._reload_from_ledger_locked()
 
     async def _reload_from_ledger(self) -> None:
         async with self._lock:
-            await self._reload_from_ledger_locked()
+            self._reload_from_ledger_locked()
 
-    async def _reload_from_ledger_locked(self) -> None:
+    def _reload_from_ledger_locked(self) -> None:
         """Read ledger for current day. Must hold _lock."""
-        tier_spent, global_spent = await asyncio.to_thread(
-            _read_ledger_sync, self._ledger_path, self._day
-        )
+        tier_spent, global_spent = _read_ledger_sync(self._ledger_path, self._day)
         self._tier_spent = tier_spent
         self._global_spent = global_spent
