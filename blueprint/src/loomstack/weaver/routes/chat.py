@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import uuid
 from collections import deque
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from fastapi.responses import Response
 
 from loomstack.weaver.config import WeaverSettings, get_settings
 from loomstack.weaver.openai_compat_client import LLMClientError, OpenAICompatClient
@@ -16,6 +19,16 @@ from loomstack.weaver.openai_compat_client import LLMClientError, OpenAICompatCl
 log = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["chat"])
+
+
+@router.get("/chat")
+async def chat_page(request: Request) -> Response:
+    """Render the chat UI."""
+    return cast(
+        "Response",
+        request.app.state.templates.TemplateResponse(request, "chat.html", {"active": "chat"}),
+    )
+
 
 # In-memory conversation store: conversation_id -> deque of message dicts.
 # Deques are capped at _HISTORY_MAX; oldest messages drop off automatically.

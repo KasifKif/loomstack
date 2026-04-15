@@ -13,6 +13,35 @@ from loomstack.weaver.config import WeaverSettings, get_settings
 from loomstack.weaver.openai_compat_client import LLMClientError
 from loomstack.weaver.routes import chat as chat_module
 
+# ---------------------------------------------------------------------------
+# Chat page (GET /chat)
+# ---------------------------------------------------------------------------
+
+
+def test_chat_page_renders() -> None:
+    app = create_app()
+    with TestClient(app) as c:
+        resp = c.get("/chat")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "ws/chat" in resp.text
+    assert 'class="active"' in resp.text  # nav active state
+
+
+def test_chat_page_contains_key_elements() -> None:
+    app = create_app()
+    with TestClient(app) as c:
+        resp = c.get("/chat")
+    assert 'id="messages"' in resp.text
+    assert 'id="msg-input"' in resp.text
+    assert 'id="send-btn"' in resp.text
+    assert 'id="new-btn"' in resp.text
+
+
+# ---------------------------------------------------------------------------
+# Shared fixtures
+# ---------------------------------------------------------------------------
+
 
 @pytest.fixture(autouse=True)
 def clear_conversations() -> Any:

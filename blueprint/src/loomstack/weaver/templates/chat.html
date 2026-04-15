@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Chat{% endblock %}
+
+{% block content %}
+<div id="chat-container">
+  <div id="messages"></div>
+  <div id="input-bar">
+    <input id="msg-input" type="text" placeholder="Message Weaver…" autocomplete="off">
+    <button id="send-btn">Send</button>
+    <button id="new-btn" title="New conversation">New</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const messagesEl = document.getElementById("messages");
+  const inputEl    = document.getElementById("msg-input");
+  const sendBtn    = document.getElementById("send-btn");
+  const newBtn     = document.getElementById("new-btn");
+
+  let conversationId = crypto.randomUUID();
+  let ws = null;
+  let currentBubble = null;
+
+  // ---- WebSocket lifecycle ------------------------------------------------
+
+  function connect() {
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/ws/chat`);
+
+    ws.onopen = () => setConnected(true);
+
+    ws.onclose = () => {
+      setConnected(false);
+      // Reconnect after 2 s
+      setTimeout(connect, 2000);
+    };
+
+    ws.onerror = () => ws.close();
+
+    ws.onmessage = (evt) => {
+      const msg = JSON.parse(evt.data);
+      if (msg.type === "token") {
+        if (!currentBubble) currentBubble = appendBubble("assistant", "");
+        currentBubble.textContent += msg.content;
+        scrollToBottom();
+      } else if (msg.type === "done") {
+        currentBubble = null;
+        setInputEnabled(true);
+      } else if (msg.type === "error") {
+        if (currentBubble) currentBubble.classList.add("error");
+        else appendBubble("error", msg.content);
+        currentBubble = null;
+        setInputEnabled(true);
+      }
+    };
+  }
+
+  // ---- Send ---------------------------------------------------------------
+
+  function send() {
+    const text = inputEl.value.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+    appendBubble("user", text);
+    inputEl.value = "";
+    setInputEnabled(false);
+    ws.send(JSON.stringify({ message: text, conversation_id: conversationId }));
+    scrollToBottom();
+  }
+
+  // ---- New conversation ---------------------------------------------------
+
+  function newConversation() {
+    conversationId = crypto.randomUUID();
+    messagesEl.innerHTML = "";
+    appendSystem("New conversation started.");
+  }
+
+  // ---- Helpers ------------------------------------------------------------
+
+  function appendBubble(role, text) {
+    const div = document.createElement("div");
+    div.className = `bubble ${role}`;
+    div.textContent = text;
+    messagesEl.appendChild(div);
+    return div;
+  }
+
+  function appendSystem(text) {
+    const div = document.createElement("div");
+    div.className = "system-msg";
+    div.textContent = text;
+    messagesEl.appendChild(div);
+    scrollToBottom();
+  }
+
+  function scrollToBottom() {
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function setInputEnabled(enabled) {
+    inputEl.disabled  = !enabled;
+    sendBtn.disabled  = !enabled;
+  }
+
+  function setConnected(ok) {
+    document.body.dataset.connected = ok ? "1" : "0";
+    if (!ok) appendSystem("Disconnected — reconnecting…");
+  }
+
+  // ---- Event listeners ----------------------------------------------------
+
+  sendBtn.addEventListener("click", send);
+  newBtn.addEventListener("click", newConversation);
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+
+  connect();
+})();
+</script>
+{% endblock %}
