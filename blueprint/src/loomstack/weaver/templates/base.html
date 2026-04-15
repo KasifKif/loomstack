@@ -17,6 +17,15 @@
       <li><a href="/budget" {% if active == "budget"    %}class="active"{% endif %}>Budget</a></li>
       <li><a href="/health" {% if active == "health"    %}class="active"{% endif %}>Health</a></li>
     </ul>
+    {% set projects = weaver_projects() %}
+    {% if projects|length > 1 %}
+    <div class="nav-section-label">Projects</div>
+    <ul>
+      {% for p in projects %}
+      <li><a href="/projects/{{ p }}" {% if active_project == p %}class="active"{% endif %}>{{ p }}</a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
   </nav>
   <main>
     {% block content %}{% endblock %}
