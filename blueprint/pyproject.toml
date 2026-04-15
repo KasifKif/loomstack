@@ -1,0 +1,60 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "loomstack"
+version = "0.1.0"
+description = "NemoClaw blueprint: single-repo AI task orchestration"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "aiofiles>=23.2",
+    "httpx>=0.27",
+    "anthropic>=0.28",
+    "google-genai>=0.8",
+    "openai>=1.30",
+    "structlog>=24.2",
+    "portalocker>=2.8",
+    "PyYAML>=6.0",
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "websockets>=12.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "pytest-asyncio>=0.23",
+    "mypy>=1.10",
+    "ruff>=0.4",
+    "types-aiofiles",
+    "types-PyYAML",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/loomstack"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "TCH"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["loomstack"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["loomstack.core", "loomstack.agents", "loomstack.weaver"]
+explicit_package_bases = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
