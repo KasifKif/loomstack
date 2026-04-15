@@ -1,4 +1,4 @@
-"""Tests for loomstack.weaver.gx10_client."""
+"""Tests for loomstack.weaver.openai_compat_client."""
 
 from __future__ import annotations
 
@@ -10,15 +10,19 @@ import httpx
 import pytest
 
 from loomstack.weaver.config import WeaverSettings
-from loomstack.weaver.gx10_client import GX10Client, GX10Error
+from loomstack.weaver.openai_compat_client import LLMClientError, OpenAICompatClient
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def _make_settings(base_url: str = "http://gx10.local:8080") -> WeaverSettings:
-    return WeaverSettings(gx10_base_url=base_url)
+def _make_settings(
+    base_url: str = "http://gx10.local:8080",
+    api_key: str | None = None,
+    model: str = "qwen3-coder-next",
+) -> WeaverSettings:
+    return WeaverSettings(llm_base_url=base_url, llm_api_key=api_key, llm_default_model=model)
 
 
 def _chat_response(content: str) -> dict[str, Any]:
@@ -34,10 +38,30 @@ def _sse_lines(tokens: list[str], include_done: bool = True) -> list[str]:
     for tok in tokens:
         chunk = {"choices": [{"delta": {"content": tok}}]}
         lines.append(f"data: {json.dumps(chunk)}")
-        lines.append("")  # blank line between events
+        lines.append("")
     if include_done:
         lines.append("data: [DONE]")
     return lines
+
+
+# ---------------------------------------------------------------------------
+# Config / headers
+# ---------------------------------------------------------------------------
+
+
+def test_no_api_key_sends_no_auth_header() -> None:
+    client = OpenAICompatClient(settings=_make_settings())
+    assert "Authorization" not in client._headers
+
+
+def test_api_key_sets_bearer_header() -> None:
+    client = OpenAICompatClient(settings=_make_settings(api_key="sk-test"))
+    assert client._headers["Authorization"] == "Bearer sk-test"
+
+
+def test_default_model_from_settings() -> None:
+    client = OpenAICompatClient(settings=_make_settings(model="gpt-4o"))
+    assert client._default_model == "gpt-4o"
 
 
 # ---------------------------------------------------------------------------
@@ -47,7 +71,7 @@ def _sse_lines(tokens: list[str], include_done: bool = True) -> list[str]:
 
 @pytest.mark.asyncio
 async def test_complete_returns_content() -> None:
-    client = GX10Client(settings=_make_settings())
+    client = OpenAICompatClient(settings=_make_settings())
     mock_response = MagicMock(spec=httpx.Response)
     mock_response.status_code = 200
     mock_response.json.return_value = _chat_response("Hello, world!")
@@ -64,8 +88,28 @@ async def test_complete_returns_content() -> None:
 
 
 @pytest.mark.asyncio
+async def test_complete_uses_override_model() -> None:
+    """model= kwarg overrides the default."""
+    client = OpenAICompatClient(settings=_make_settings())
+    mock_response = MagicMock(spec=httpx.Response)
+    mock_response.status_code = 200
+    mock_response.json.return_value = _chat_response("ok")
+
+    with patch("httpx.AsyncClient") as mock_cls:
+        mock_http = AsyncMock()
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_http)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_http.post = AsyncMock(return_value=mock_response)
+
+        await client.complete([{"role": "user", "content": "Hi"}], model="claude-3-5-sonnet")
+        payload = mock_http.post.call_args.kwargs["json"]
+
+    assert payload["model"] == "claude-3-5-sonnet"
+
+
+@pytest.mark.asyncio
 async def test_complete_raises_on_5xx() -> None:
-    client = GX10Client(settings=_make_settings())
+    client = OpenAICompatClient(settings=_make_settings())
     mock_response = MagicMock(spec=httpx.Response)
     mock_response.status_code = 503
     mock_response.text = "Service Unavailable"
@@ -76,13 +120,13 @@ async def test_complete_raises_on_5xx() -> None:
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_http.post = AsyncMock(return_value=mock_response)
 
-        with pytest.raises(GX10Error, match="503"):
+        with pytest.raises(LLMClientError, match="503"):
             await client.complete([{"role": "user", "content": "Hi"}])
 
 
 @pytest.mark.asyncio
 async def test_complete_raises_on_connection_refused() -> None:
-    client = GX10Client(settings=_make_settings())
+    client = OpenAICompatClient(settings=_make_settings())
 
     with patch("httpx.AsyncClient") as mock_cls:
         mock_http = AsyncMock()
@@ -90,13 +134,13 @@ async def test_complete_raises_on_connection_refused() -> None:
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_http.post = AsyncMock(side_effect=httpx.ConnectError("refused"))
 
-        with pytest.raises(GX10Error, match="connection refused"):
+        with pytest.raises(LLMClientError, match="connection refused"):
             await client.complete([{"role": "user", "content": "Hi"}])
 
 
 @pytest.mark.asyncio
 async def test_complete_raises_on_timeout() -> None:
-    client = GX10Client(settings=_make_settings())
+    client = OpenAICompatClient(settings=_make_settings())
 
     with patch("httpx.AsyncClient") as mock_cls:
         mock_http = AsyncMock()
@@ -104,13 +148,13 @@ async def test_complete_raises_on_timeout() -> None:
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_http.post = AsyncMock(side_effect=httpx.ReadTimeout("timeout"))
 
-        with pytest.raises(GX10Error, match="timed out"):
+        with pytest.raises(LLMClientError, match="timed out"):
             await client.complete([{"role": "user", "content": "Hi"}])
 
 
 @pytest.mark.asyncio
 async def test_complete_raises_on_malformed_response() -> None:
-    client = GX10Client(settings=_make_settings())
+    client = OpenAICompatClient(settings=_make_settings())
     mock_response = MagicMock(spec=httpx.Response)
     mock_response.status_code = 200
     mock_response.json.return_value = {"unexpected": "structure"}
@@ -121,7 +165,7 @@ async def test_complete_raises_on_malformed_response() -> None:
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
         mock_http.post = AsyncMock(return_value=mock_response)
 
-        with pytest.raises(GX10Error, match="Unexpected GX10 response"):
+        with pytest.raises(LLMClientError, match="Unexpected response structure"):
             await client.complete([{"role": "user", "content": "Hi"}])
 
 
@@ -130,29 +174,17 @@ async def test_complete_raises_on_malformed_response() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def _collect_stream(client: GX10Client, messages: list[dict[str, str]]) -> list[str]:
-    chunks: list[str] = []
-    async for tok in await _stream_gen(client, messages):
-        chunks.append(tok)
-    return chunks
-
-
-async def _stream_gen(client: GX10Client, messages: list[dict[str, str]]) -> Any:
-    """Wrapper because stream_complete is an async generator."""
-    return client.stream_complete(messages)
-
-
 @pytest.mark.asyncio
 async def test_stream_complete_yields_tokens() -> None:
-    client = GX10Client(settings=_make_settings())
+    client = OpenAICompatClient(settings=_make_settings())
     tokens = ["Hello", ", ", "world", "!"]
-    sse_lines = _sse_lines(tokens)
+    sse = _sse_lines(tokens)
 
     mock_response = AsyncMock(spec=httpx.Response)
     mock_response.status_code = 200
 
     async def _aiter_lines() -> Any:
-        for line in sse_lines:
+        for line in sse:
             yield line
 
     mock_response.aiter_lines = _aiter_lines
@@ -175,16 +207,13 @@ async def test_stream_complete_yields_tokens() -> None:
 
 @pytest.mark.asyncio
 async def test_stream_complete_skips_done_sentinel() -> None:
-    """[DONE] line must not produce a chunk."""
-    client = GX10Client(settings=_make_settings())
-    sse_lines = ["data: [DONE]"]
+    client = OpenAICompatClient(settings=_make_settings())
 
     mock_response = AsyncMock(spec=httpx.Response)
     mock_response.status_code = 200
 
     async def _aiter_lines() -> Any:
-        for line in sse_lines:
-            yield line
+        yield "data: [DONE]"
 
     mock_response.aiter_lines = _aiter_lines
 
@@ -206,22 +235,14 @@ async def test_stream_complete_skips_done_sentinel() -> None:
 
 @pytest.mark.asyncio
 async def test_stream_complete_skips_malformed_json() -> None:
-    """Malformed JSON lines should be silently skipped."""
-    client = GX10Client(settings=_make_settings())
-    good_chunk = json.dumps({"choices": [{"delta": {"content": "ok"}}]})
-    sse_lines = [
-        "data: not-valid-json",
-        "",
-        f"data: {good_chunk}",
-        "",
-        "data: [DONE]",
-    ]
+    client = OpenAICompatClient(settings=_make_settings())
+    good = json.dumps({"choices": [{"delta": {"content": "ok"}}]})
 
     mock_response = AsyncMock(spec=httpx.Response)
     mock_response.status_code = 200
 
     async def _aiter_lines() -> Any:
-        for line in sse_lines:
+        for line in ["data: not-valid-json", "", f"data: {good}", "", "data: [DONE]"]:
             yield line
 
     mock_response.aiter_lines = _aiter_lines
@@ -244,7 +265,7 @@ async def test_stream_complete_skips_malformed_json() -> None:
 
 @pytest.mark.asyncio
 async def test_stream_complete_raises_on_connection_refused() -> None:
-    client = GX10Client(settings=_make_settings())
+    client = OpenAICompatClient(settings=_make_settings())
 
     with patch("httpx.AsyncClient") as mock_cls:
         mock_http = MagicMock()
@@ -255,14 +276,14 @@ async def test_stream_complete_raises_on_connection_refused() -> None:
         mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_http)
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        with pytest.raises(GX10Error, match="connection refused"):
+        with pytest.raises(LLMClientError, match="connection refused"):
             async for _ in client.stream_complete([{"role": "user", "content": "Hi"}]):
                 pass
 
 
 @pytest.mark.asyncio
 async def test_stream_complete_raises_on_5xx() -> None:
-    client = GX10Client(settings=_make_settings())
+    client = OpenAICompatClient(settings=_make_settings())
 
     mock_response = AsyncMock(spec=httpx.Response)
     mock_response.status_code = 500
@@ -277,14 +298,14 @@ async def test_stream_complete_raises_on_5xx() -> None:
         mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_http)
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        with pytest.raises(GX10Error, match="500"):
+        with pytest.raises(LLMClientError, match="500"):
             async for _ in client.stream_complete([{"role": "user", "content": "Hi"}]):
                 pass
 
 
 @pytest.mark.asyncio
 async def test_stream_complete_raises_on_timeout() -> None:
-    client = GX10Client(settings=_make_settings())
+    client = OpenAICompatClient(settings=_make_settings())
 
     with patch("httpx.AsyncClient") as mock_cls:
         mock_http = MagicMock()
@@ -295,6 +316,6 @@ async def test_stream_complete_raises_on_timeout() -> None:
         mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_http)
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        with pytest.raises(GX10Error, match="timed out"):
+        with pytest.raises(LLMClientError, match="timed out"):
             async for _ in client.stream_complete([{"role": "user", "content": "Hi"}]):
                 pass

@@ -8,7 +8,9 @@ class WeaverSettings(BaseSettings):
 
     model_config = {"env_prefix": "WEAVER_"}
 
-    gx10_base_url: str = "http://gx10.local:8080"
+    llm_base_url: str = "http://gx10.local:8080"
+    llm_api_key: str | None = None
+    llm_default_model: str = "qwen3-coder-next"
     loomstack_project_dir: str = "."
     host: str = "127.0.0.1"
     port: int = 8400
