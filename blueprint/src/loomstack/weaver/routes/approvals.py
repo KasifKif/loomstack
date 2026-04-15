@@ -1,0 +1,88 @@
+"""Approval gate API routes for Weaver."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Annotated
+
+import structlog
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+
+from loomstack.core.plan_parser import parse_plan_file
+from loomstack.core.state import approval_marker_path, is_approved
+from loomstack.weaver.config import WeaverSettings, get_settings
+
+logger = structlog.get_logger()
+
+router = APIRouter(prefix="/api", tags=["approvals"])
+
+
+class PendingApproval(BaseModel):
+    """A task awaiting human review."""
+
+    task_id: str
+    description: str
+
+
+class PendingApprovalsResponse(BaseModel):
+    """Response model for the pending approvals list."""
+
+    tasks: list[PendingApproval]
+
+
+@router.post("/approve/{task_id}", status_code=status.HTTP_201_CREATED)
+async def approve_task(
+    task_id: str,
+    settings: Annotated[WeaverSettings, Depends(get_settings)],
+) -> dict[str, str]:
+    """
+    Create a marker file to approve a task. Idempotent.
+    """
+    project_dir = Path(settings.loomstack_project_dir)
+    loomstack_dir = project_dir / ".loomstack"
+    marker = approval_marker_path(task_id, loomstack_dir)
+
+    try:
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.touch(exist_ok=True)
+    except OSError as exc:
+        logger.error("approval_failed", task_id=task_id, error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create approval marker: {exc}",
+        ) from exc
+
+    logger.info("task_approved", task_id=task_id)
+    return {"status": "approved", "task_id": task_id}
+
+
+@router.get("/pending-approvals", response_model=PendingApprovalsResponse)
+async def list_pending_approvals(
+    settings: Annotated[WeaverSettings, Depends(get_settings)],
+) -> PendingApprovalsResponse:
+    """
+    Return a list of tasks that require human_review but haven't been approved.
+    """
+    project_dir = Path(settings.loomstack_project_dir)
+    plan_path = project_dir / "PLAN.md"
+
+    if not plan_path.exists():
+        return PendingApprovalsResponse(tasks=[])
+
+    try:
+        plan = await parse_plan_file(plan_path)
+    except Exception as exc:
+        logger.error("plan_parse_failed", path=str(plan_path), error=str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to parse PLAN.md: {exc}",
+        ) from exc
+
+    loomstack_dir = project_dir / ".loomstack"
+    pending = []
+    for task in plan.tasks:
+        if task.human_review and not is_approved(task.task_id, loomstack_dir):
+            pending.append(PendingApproval(task_id=task.task_id, description=task.description))
+
+    return PendingApprovalsResponse(tasks=pending)

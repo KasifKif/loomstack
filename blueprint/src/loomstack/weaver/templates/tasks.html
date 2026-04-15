@@ -19,6 +19,7 @@
             <th>Status</th>
             <th>Depends On</th>
             <th>Review</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody id="task-table-body" 
@@ -51,7 +52,6 @@
 
 <script src="https://d3js.org/d3.v5.min.js" charset="utf-8"></script>
 <script src="https://dagrejs.github.io/project/dagre-d3/latest/dagre-d3.min.js"></script>
-<script src="https://unpkg.com/htmx.org@1.9.10"></script>
 
 <script>
   function renderGraph() {
@@ -214,6 +214,41 @@
   .status-done { background: #27ae60; color: #fff; }
   .status-failed { background: #c0392b; color: #fff; }
   .status-blocked { background: #d35400; color: #fff; }
+
+  .btn {
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+  }
+
+  .btn-approve {
+    background: #27ae60;
+    color: white;
+  }
+
+  .btn-approve:hover {
+    background: #2ecc71;
+  }
+
+  .btn-log {
+    background: #34495e;
+    color: white;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .btn-log:hover {
+    background: #5d6d7e;
+  }
+
+  .task-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
   
   .tasks-visuals {
     display: flex;

@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Run Log: {{ task_id }}{% endblock %}
+
+{% block content %}
+<div class="log-container" 
+     {% if run_meta.status == 'in_progress' %}
+     hx-get="/tasks/{{ task_id }}/log" 
+     hx-trigger="every 10s" 
+     hx-select=".log-container" 
+     hx-swap="outerHTML"
+     {% endif %}>
+  
+  <div class="log-header">
+    <div class="log-title">
+      <a href="/tasks" class="back-link">← Tasks</a>
+      <h1>Run Log: {{ task_id }}</h1>
+    </div>
+    <div class="log-meta-card">
+      <div class="meta-item">
+        <label>Status</label>
+        <span class="badge status-{{ run_meta.status }}">{{ run_meta.status or 'pending' }}</span>
+      </div>
+      <div class="meta-item">
+        <label>Tier</label>
+        <span>{{ run_meta.tier or 'N/A' }}</span>
+      </div>
+      <div class="meta-item">
+        <label>Cost</label>
+        <span>${{ "%.4f"|format(run_meta.cost_usd or 0) }}</span>
+      </div>
+      <div class="meta-item">
+        <label>PR</label>
+        <span>
+          {% if run_meta.pr_url %}
+          <a href="{{ run_meta.pr_url }}" target="_blank">View PR</a>
+          {% else %}
+          N/A
+          {% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <div class="log-body markdown-body">
+    {{ html_body | safe }}
+  </div>
+</div>
+
+<style>
+  .log-container {
+    padding: 2rem;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+
+  .log-header {
+    margin-bottom: 2rem;
+    border-bottom: 1px solid #333;
+    padding-bottom: 1.5rem;
+  }
+
+  .log-title {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .back-link {
+    color: #888;
+    text-decoration: none;
+    font-size: 0.9rem;
+  }
+
+  .back-link:hover {
+    color: #3498db;
+  }
+
+  .log-meta-card {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1.5rem;
+    background: #1a1a1a;
+    padding: 1.25rem;
+    border-radius: 8px;
+    border: 1px solid #333;
+  }
+
+  .meta-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .meta-item label {
+    font-size: 0.75rem;
+    color: #888;
+    text-transform: uppercase;
+  }
+
+  .meta-item span {
+    font-size: 1rem;
+    font-weight: 500;
+  }
+
+  .log-body {
+    background: #1a1a1a;
+    padding: 2rem;
+    border-radius: 8px;
+    border: 1px solid #333;
+    line-height: 1.6;
+  }
+
+  /* Basic Markdown Styling */
+  .markdown-body h1, .markdown-body h2, .markdown-body h3 {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    color: #3498db;
+  }
+  .markdown-body p {
+    margin-bottom: 1rem;
+  }
+  .markdown-body pre {
+    background: #000;
+    padding: 1rem;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+  }
+  .markdown-body code {
+    font-family: monospace;
+    background: #252525;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+  }
+  .markdown-body pre code {
+    background: transparent;
+    padding: 0;
+  }
+  .markdown-body ul, .markdown-body ol {
+    margin-bottom: 1rem;
+    padding-left: 1.5rem;
+  }
+  .markdown-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 1rem;
+  }
+  .markdown-body th, .markdown-body td {
+    border: 1px solid #333;
+    padding: 0.75rem;
+    text-align: left;
+  }
+  .markdown-body th {
+    background: #252525;
+  }
+</style>
+{% endblock %}
