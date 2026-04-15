@@ -26,7 +26,8 @@ class GX10Status:
     model_id: str | None
     slots_active: int
     slots_total: int
-    context_window: int
+    context_per_slot: int
+    context_total: int
     error: str | None = None
 
 
@@ -47,7 +48,8 @@ async def fetch_gx10_status(base_url: str, api_key: str | None = None) -> GX10St
             model_id=None,
             slots_active=0,
             slots_total=0,
-            context_window=0,
+            context_per_slot=0,
+            context_total=0,
             error="Connection refused",
         )
     except httpx.TimeoutException:
@@ -56,7 +58,8 @@ async def fetch_gx10_status(base_url: str, api_key: str | None = None) -> GX10St
             model_id=None,
             slots_active=0,
             slots_total=0,
-            context_window=0,
+            context_per_slot=0,
+            context_total=0,
             error="Timeout",
         )
 
@@ -72,10 +75,11 @@ async def fetch_gx10_status(base_url: str, api_key: str | None = None) -> GX10St
         except (KeyError, IndexError, ValueError):
             log.warning("health.models_parse_error", body=models_resp.text[:200])
 
-    # /slots — active slot count, total, context usage
+    # /slots — active slot count, total, per-slot and total context
     slots_active = 0
     slots_total = 0
-    context_window = 0
+    context_per_slot = 0
+    context_total = 0
     if slots_resp.status_code == 200:
         try:
             slots: list[dict[str, Any]] = slots_resp.json()
@@ -83,7 +87,9 @@ async def fetch_gx10_status(base_url: str, api_key: str | None = None) -> GX10St
             for slot in slots:
                 if slot.get("state") == 1:  # 1 = processing
                     slots_active += 1
-                context_window = max(context_window, int(slot.get("n_ctx", 0)))
+                slot_ctx = int(slot.get("n_ctx", 0))
+                context_per_slot = max(context_per_slot, slot_ctx)
+                context_total += slot_ctx
         except (ValueError, TypeError, KeyError):
             log.warning("health.slots_parse_error", body=slots_resp.text[:200])
 
@@ -92,7 +98,8 @@ async def fetch_gx10_status(base_url: str, api_key: str | None = None) -> GX10St
         model_id=model_id,
         slots_active=slots_active,
         slots_total=slots_total,
-        context_window=context_window,
+        context_per_slot=context_per_slot,
+        context_total=context_total,
     )
 
 
@@ -132,7 +139,8 @@ async def get_health(
         "model_id": status.model_id,
         "slots_active": status.slots_active,
         "slots_total": status.slots_total,
-        "context_window": status.context_window,
+        "context_per_slot": status.context_per_slot,
+        "context_total": status.context_total,
         "error": status.error,
     }
 

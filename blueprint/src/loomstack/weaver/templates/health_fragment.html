@@ -30,10 +30,10 @@
   </div>
   {% endif %}
 
-  {% if status.context_window > 0 %}
+  {% if status.context_total > 0 %}
   <div class="info-row">
-    <span class="info-label">Context window</span>
-    <span class="info-value mono">{{ status.context_window }} tokens</span>
+    <span class="info-label">Context</span>
+    <span class="info-value mono">{{ status.slots_total }} × {{ status.context_per_slot }} = {{ status.context_total }} tokens</span>
   </div>
   {% endif %}
 
