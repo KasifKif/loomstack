@@ -1,25 +1,20 @@
 # Loomstack
 
-A NemoClaw plugin that turns a single git repo with four standard files into an autonomously-built project. You write the plan; tiered AI agents build it; you review on weekends.
+A standalone Python tool that turns a single git repo with four standard files into an autonomously-built project. You write the plan; tiered AI agents build it; you review on weekends.
 
-Loomstack is **single-repo**. It operates on whatever repo you run it in, like `git` or `cargo`. If you're working on a different project, `cd` to that repo.
-
-Loomstack runs as a plugin inside NemoClaw's OpenShell sandbox. NemoClaw gives us kernel-level network isolation, audit logging, and approval gates for free; Loomstack provides the plan-to-PR dispatch logic on top.
+Loomstack is **single-repo scoped**. It operates on whatever repo you point it at, like `git` or `cargo`. Working on a different project? `cd` to that repo, or use Weaver's multi-project mode.
 
 ## What Loomstack Is (and Isn't)
 
 **Is:**
-- A NemoClaw plugin (TypeScript CLI surface + versioned Python blueprint)
+- A Python CLI + web dashboard for AI task orchestration
 - A dispatcher that reads `PLAN.md` and routes tasks to tiered AI workers by role
 - Agent adapters that wrap `claude-code` pointed at different model endpoints (local Qwen, Opus, Gemini)
 - A reusable bootstrap pack you paste into Claude Code to generate new project scaffolding
 - File-state based: `PLAN.md` defines work, git branches/PRs track progress, `.loomstack/` holds runs + ledger + approvals. No database.
 
 **Isn't:**
-- A multi-project manager. One repo per daemon. `cd` to switch.
-- A standalone service. Runs inside NemoClaw; uses NemoClaw's CLI, logs, and approval surface.
-- An NVIDIA lock-in. Privacy Router is configured to route to **your** endpoints only; NIM/Nemotron is never a default.
-- A Discord bot or chat frontend. NemoClaw's native CLI + GitHub PR notifications are the operator surface.
+- A multi-project manager. One repo per run. `cd` to switch (or use Weaver's sidebar selector).
 - A worker framework written from scratch. Workers are `claude-code` subprocesses pointed at different endpoints per tier.
 
 ## Worker Tiers
@@ -31,32 +26,31 @@ Loomstack runs as a plugin inside NemoClaw's OpenShell sandbox. NemoClaw gives u
 | **Code Worker** | `claude-code` → GX10 | Qwen3-Coder-Next | Primary implementation; ~70% of tasks |
 | **Content Worker** | `claude-code` → GX10 (swap-in) | Qwen3-235B-A22B | Narrative, lore, complex docs |
 | **Reviewer** | API client | Gemini 2.5 Flash → Pro | PR review, spec-compliance, test adequacy |
-| **Architect** | `claude-code` → Anthropic | Opus 4.6 | Design, escalation, hard debugging. **Gated by NemoClaw approval.** |
+| **Architect** | `claude-code` → Anthropic | Opus 4.6 | Design, escalation, hard debugging. **Always gated by approval.** |
 | **Researcher** | API client | Gemini + web search | Library vetting, upstream bug search |
 | **Test Runner** | Shell | (no LLM) | Runs the project's configured CI command |
 
-Adding a tier = one file in `blueprint/src/loomstack/agents/` + one entry in `policies/privacy-router.yaml`.
+Adding a tier = one file in `blueprint/src/loomstack/agents/` + one entry in endpoint config.
 
 ## Architecture
 
 ```
 Ubuntu workstation (always-on)
-└── NemoClaw sandbox (OpenShell: Landlock + seccomp + namespaces)
-    ├── Privacy Router (routes by tier, enforces allowlist)
-    └── Loomstack blueprint (Python, async)
-        ├── plan_parser   → PLAN.md → task records
-        ├── dispatcher    → routes tasks by role
-        ├── agents/       → spawn claude-code subprocesses per tier
-        ├── ledger        → .loomstack/ledger.jsonl
-        ├── state         → derives status from git + files
-        └── github        → gh CLI wrapper
+└── Loomstack (Python, async)
+    ├── plan_parser   → PLAN.md → task records
+    ├── dispatcher    → routes tasks by role
+    ├── agents/       → spawn claude-code subprocesses per tier
+    ├── ledger        → .loomstack/ledger.jsonl
+    ├── state         → derives status from git + files
+    ├── github        → gh CLI wrapper
+    └── weaver        → FastAPI web dashboard
 
-                    │
-    ┌───────────────┼──────────────────┐
-    ▼               ▼                  ▼
-GX10 llama-server   Mac Mini llama-server   Cloud APIs
-  Qwen Coder-Next     Qwen3-8B Q4             Opus (architect)
-  Qwen 235B (swap)    embeddings              Gemini (reviewer/researcher)
+                │
+    ┌───────────┼──────────────────┐
+    ▼           ▼                  ▼
+GX10 llama     Mac Mini llama     Cloud APIs
+  Qwen Coder     Qwen3-8B Q4       Opus (architect)
+  Qwen 235B      embeddings        Gemini (reviewer/researcher)
 ```
 
 Hardware provisioning lives in [`ailab-infra`](https://github.com/ronkam/ailab-infra).
@@ -99,91 +93,101 @@ Loomstack refuses to run if any of the four top-level files are missing or inval
 ```
 loomstack/
 ├── README.md  CLAUDE.md
-├── plugin/                      ← TypeScript NemoClaw plugin
-│   ├── package.json  tsconfig.json
-│   └── src/index.ts + commands/
-├── blueprint/                   ← Python blueprint, OCI-packaged
-│   ├── Dockerfile  blueprint.yaml  pyproject.toml
+├── blueprint/                   ← Python package
+│   ├── pyproject.toml
 │   └── src/loomstack/
 │       ├── core/                ← plan_parser, dispatcher, state, ledger, budget, github, gx10
 │       ├── agents/              ← claude_code_runner + per-tier wrappers + reviewer + researcher + test_runner
-│       └── runner.py            ← blueprint entry point
-├── bootstrap/                   ← authoring pack (ships inside blueprint)
+│       ├── weaver/              ← FastAPI dashboard (routes, templates, static)
+│       └── runner.py            ← entry point
+├── bootstrap/                   ← authoring pack (docs, shipped as data)
 │   ├── INFRA_SPEC.md  PROJECT_CONTRACT.md  PLAN_SCHEMA.md
 │   ├── ESCALATION_RULES.md  BOOTSTRAP_PROMPT.md
 │   └── EXAMPLES/
 ├── templates/project/           ← 4-file scaffold copied by `loomstack init`
-├── policies/                    ← NemoClaw config
-│   ├── privacy-router.yaml  network-allowlist.yaml  approval-gates.yaml
 └── tests/
 ```
 
 ## CLI
 
-All commands via NemoClaw:
-
 ```
-nemoclaw loomstack init              # scaffold the 4 files in cwd
-nemoclaw loomstack parse             # validate PLAN.md + show task graph
-nemoclaw loomstack run [--once]      # dispatch ready tasks
-nemoclaw loomstack status            # task graph + current state
-nemoclaw loomstack approve <task>    # unblock architect gate
-nemoclaw loomstack escalate <task>   # force-promote to architect
-nemoclaw loomstack cost [--since 7d] # spend breakdown
-nemoclaw loomstack doctor            # health-check endpoints, verify NIM-free
-nemoclaw loomstack bootstrap         # print BOOTSTRAP_PROMPT.md
-
-# NemoClaw native, use these too:
-nemoclaw status                      # sandbox + gateway health
-nemoclaw logs                        # audit log: every tool call, every egress
+loomstack init                   # scaffold the 4 files in cwd
+loomstack parse                  # validate PLAN.md + show task graph
+loomstack run [--once]           # dispatch ready tasks
+loomstack status                 # task graph + current state
+loomstack approve <task>         # unblock approval gate
+loomstack escalate <task>        # force-promote to architect
+loomstack cost [--since 7d]      # spend breakdown
+loomstack doctor                 # health-check endpoints
+loomstack weaver                 # start the Weaver web dashboard
 ```
+
+## Weaver Dashboard
+
+Weaver is a local web dashboard for monitoring and interacting with Loomstack. Built with FastAPI, Jinja2, and HTMX — no JavaScript framework, no build step.
+
+```bash
+loomstack weaver                  # start on default port (8400)
+```
+
+**Pages:**
+
+| Page | Path | What it shows |
+|------|------|---------------|
+| Dashboard | `/` | Overview with health status and budget snapshot |
+| Tasks | `/tasks` | Task table with status badges, dependency graph (dagre-d3), and detail side panel |
+| Budget | `/budget` | Daily spend, history chart, recent ledger entries |
+| Health | `/health` | Endpoint health checks |
+| Chat | `/chat` | LLM chat interface for ad-hoc queries |
+
+**Key features:**
+- **Live task table** — auto-refreshes every 10s via HTMX; click any row for full detail panel
+- **Dependency graph** — interactive DAG visualization with zoom/pan (d3 + dagre-d3)
+- **Inline approvals** — approve gated tasks directly from the table; button swaps to badge without page reload
+- **Run logs** — rendered markdown view of `.loomstack/runs/<task-id>.md` per task
+- **Multi-project mode** — configure multiple project dirs; sidebar selector switches between them
+- **JSON API** — every page has a corresponding `/api/` endpoint returning JSON for scripting
+
+Weaver is read-only except for the approval endpoint. It never modifies `PLAN.md`, runs tasks, or pushes code.
 
 ## Bootstrap Flow
 
 1. Have an idea.
-2. `nemoclaw loomstack bootstrap | pbcopy`
+2. Copy the bootstrap prompt from `bootstrap/BOOTSTRAP_PROMPT.md`.
 3. Paste into Claude Code with your idea.
 4. Claude Code reads the bootstrap pack, asks ~5 scoping questions, generates the four files.
 5. Commit, push to GitHub.
-6. On the Ubuntu workstation: `git clone`, `cd`, `nemoclaw loomstack run`.
+6. On the Ubuntu workstation: `git clone`, `cd`, `loomstack run`.
 7. Review PRs. Approve architect tasks. Repeat.
 
 ~20 minutes from idea to agents running.
 
 ## Quick Start
 
-### 1. Install NemoClaw on Ubuntu
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/NVIDIA/nemoclaw/main/install.sh | sh
-nemoclaw onboard
-```
-
-### 2. Install Loomstack plugin
+### 1. Install Loomstack
 
 ```bash
 git clone https://github.com/ronkam/loomstack.git ~/loomstack
-cd ~/loomstack
-./scripts/install-plugin.sh     # builds TS plugin + blueprint OCI, registers with NemoClaw
+cd ~/loomstack/blueprint
+uv sync
 ```
 
-### 3. Configure endpoints (critical: NIM-free routing)
+### 2. Configure endpoints
+
+Edit `loomstack.yaml` in your project to point each tier at your endpoints (local llama-server, Anthropic API, Google AI).
 
 ```bash
-cp policies/privacy-router.yaml.example ~/.nemoclaw/privacy-router.yaml
-# Edit to point each tier at YOUR endpoints.
-# NEVER add NIM URLs. Doctor will fail if NIM endpoints are reachable.
-nemoclaw loomstack doctor
+loomstack doctor                 # verify all endpoints are reachable
 ```
 
-### 4. Onboard first project
+### 3. Onboard first project
 
 ```bash
 cd ~/src/meshcord
-nemoclaw loomstack init
+loomstack init
 # Edit the four files (or use bootstrap flow)
-nemoclaw loomstack parse
-nemoclaw loomstack run
+loomstack parse
+loomstack run
 ```
 
 ## Cost Controls
@@ -195,15 +199,6 @@ nemoclaw loomstack run
 - **Diff size cap** — PRs over `loomstack.yaml::max_diff_loc` rejected, forcing plan decomposition
 
 Typical monthly burn, 30-min/day cadence, one active project: **$25–$60**. Local workers free.
-
-## Lock-In Avoidance
-
-NemoClaw defaults to NIM/Nemotron. Loomstack explicitly overrides every tier:
-
-1. **NIM is never a default.** Every tier in `privacy-router.yaml` names a non-NIM endpoint.
-2. **`loomstack doctor` fails loud** if any tier resolves to a NemoClaw-default NIM URL.
-3. **Blueprint version pinned** in `~/.nemoclaw/config.json`; alpha software.
-4. **Fallback path documented** in `docs/NEMOCLAW_FALLBACK.md` — Loomstack can lift out and run as bare Python against the same repos.
 
 ## License
 
