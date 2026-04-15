@@ -8,17 +8,20 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, date, datetime, timedelta
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import structlog
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from fastapi.responses import Response
 
 from loomstack.weaver.config import WeaverSettings, get_settings
 
 log = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/api/budget", tags=["budget"])
+router = APIRouter(tags=["budget"])
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +113,7 @@ class RecentChargeEntry(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/today", response_model=TodayBudgetResponse)
+@router.get("/api/budget/today", response_model=TodayBudgetResponse)
 async def get_budget_today(
     settings: Annotated[WeaverSettings, Depends(get_settings)],
 ) -> TodayBudgetResponse:
@@ -127,7 +130,7 @@ async def get_budget_today(
     )
 
 
-@router.get("/history")
+@router.get("/api/budget/history")
 async def get_budget_history(
     settings: Annotated[WeaverSettings, Depends(get_settings)],
     days: int = 30,
@@ -144,7 +147,7 @@ async def get_budget_history(
     return result
 
 
-@router.get("/recent")
+@router.get("/api/budget/recent")
 async def get_budget_recent(
     settings: Annotated[WeaverSettings, Depends(get_settings)],
     n: int = 50,
@@ -165,3 +168,76 @@ async def get_budget_recent(
         )
         for e in recent
     ]
+
+
+# ---------------------------------------------------------------------------
+# HTML pages
+# ---------------------------------------------------------------------------
+
+
+@router.get("/budget", include_in_schema=False)
+async def budget_page(
+    request: Request,
+    settings: Annotated[WeaverSettings, Depends(get_settings)],
+) -> Response:
+    """Render the budget dashboard page."""
+    entries = _read_ledger_entries(_ledger_path(settings))
+    today_date = datetime.now(tz=UTC).date()
+    today_entries = _entries_for_day(entries, today_date)
+    breakdown = _tier_breakdown(today_entries)
+    total = sum(breakdown.values())
+    today_data = TodayBudgetResponse(
+        date=today_date.isoformat(),
+        total_usd=round(total, 4),
+        per_tier={k: round(v, 4) for k, v in sorted(breakdown.items())},
+    )
+
+    recent = entries[-50:] if len(entries) > 50 else entries
+    recent.reverse()
+    recent_data = [
+        RecentChargeEntry(
+            ts=str(e.get("ts", "")),
+            tier=str(e.get("tier", "unknown")),
+            task_id=str(e.get("task_id", "")),
+            usd=float(e.get("usd", 0.0)),
+            model=str(e.get("model", "")),
+            tokens_in=int(e.get("tokens_in", 0)),
+            tokens_out=int(e.get("tokens_out", 0)),
+        )
+        for e in recent
+    ]
+
+    return cast(
+        "Response",
+        request.app.state.templates.TemplateResponse(
+            request,
+            "budget.html",
+            {"active": "budget", "today": today_data, "recent": recent_data},
+        ),
+    )
+
+
+@router.get("/api/budget-fragment", include_in_schema=False)
+async def budget_fragment(
+    request: Request,
+    settings: Annotated[WeaverSettings, Depends(get_settings)],
+) -> Response:
+    """HTMX partial: re-renders the today's spend panel."""
+    entries = _read_ledger_entries(_ledger_path(settings))
+    today_date = datetime.now(tz=UTC).date()
+    today_entries = _entries_for_day(entries, today_date)
+    breakdown = _tier_breakdown(today_entries)
+    total = sum(breakdown.values())
+    today_data = TodayBudgetResponse(
+        date=today_date.isoformat(),
+        total_usd=round(total, 4),
+        per_tier={k: round(v, 4) for k, v in sorted(breakdown.items())},
+    )
+    return cast(
+        "Response",
+        request.app.state.templates.TemplateResponse(
+            request,
+            "budget_fragment.html",
+            {"today": today_data},
+        ),
+    )

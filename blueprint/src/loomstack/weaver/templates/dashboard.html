@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Weaver Dashboard</h1>
+</div>
+
+<div class="dashboard-grid">
+  <!-- Health card -->
+  <a href="/health" class="dash-card">
+    <div class="dash-card-header">LLM Status</div>
+    <div class="dash-card-body">
+      <span class="status-dot {% if health.is_healthy %}dot-ok{% else %}dot-err{% endif %}"></span>
+      <span>{% if health.is_healthy %}Online{% else %}Offline{% endif %}</span>
+      {% if health.model_id %}
+      <div class="dash-detail mono">{{ health.model_id }}</div>
+      {% endif %}
+    </div>
+  </a>
+
+  <!-- Budget card -->
+  <a href="/budget" class="dash-card">
+    <div class="dash-card-header">Today's Spend</div>
+    <div class="dash-card-body">
+      <span class="budget-amount">${{ "%.4f"|format(budget_total) }}</span>
+    </div>
+  </a>
+
+  <!-- Task counts card -->
+  <a href="/tasks" class="dash-card">
+    <div class="dash-card-header">Tasks</div>
+    <div class="dash-card-body">
+      <div class="task-counts">
+        {% if counts.done %}<span class="count-badge done">{{ counts.done }} done</span>{% endif %}
+        {% if counts.in_progress %}<span class="count-badge in-progress">{{ counts.in_progress }} running</span>{% endif %}
+        {% if counts.pending %}<span class="count-badge pending">{{ counts.pending }} pending</span>{% endif %}
+        {% if counts.failed %}<span class="count-badge failed">{{ counts.failed }} failed</span>{% endif %}
+        {% if counts.blocked %}<span class="count-badge blocked">{{ counts.blocked }} blocked</span>{% endif %}
+        {% if counts.proposed %}<span class="count-badge proposed">{{ counts.proposed }} proposed</span>{% endif %}
+      </div>
+    </div>
+  </a>
+
+  <!-- Pending approvals card -->
+  <a href="/tasks" class="dash-card">
+    <div class="dash-card-header">Pending Approvals</div>
+    <div class="dash-card-body">
+      <span class="approval-count">{{ pending_approvals }}</span>
+    </div>
+  </a>
+</div>
+{% endblock %}
