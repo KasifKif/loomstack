@@ -2,13 +2,15 @@
 
 import asyncio
 from pathlib import Path
-from typing import Annotated, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from fastapi.templating import Jinja2Templates
 
 from loomstack.core.plan_parser import PlanParseError, Task, parse_plan_file
 from loomstack.core.state import (
