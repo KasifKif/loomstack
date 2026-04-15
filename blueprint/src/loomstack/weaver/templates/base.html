@@ -10,11 +10,11 @@
   <nav id="sidebar">
     <div class="brand">Weaver</div>
     <ul>
-      <li><a href="/">Dashboard</a></li>
-      <li><a href="/chat">Chat</a></li>
-      <li><a href="/tasks">Tasks</a></li>
-      <li><a href="/budget">Budget</a></li>
-      <li><a href="/health">Health</a></li>
+      <li><a href="/"       {% if active == "dashboard" %}class="active"{% endif %}>Dashboard</a></li>
+      <li><a href="/chat"   {% if active == "chat"      %}class="active"{% endif %}>Chat</a></li>
+      <li><a href="/tasks"  {% if active == "tasks"     %}class="active"{% endif %}>Tasks</a></li>
+      <li><a href="/budget" {% if active == "budget"    %}class="active"{% endif %}>Budget</a></li>
+      <li><a href="/health" {% if active == "health"    %}class="active"{% endif %}>Health</a></li>
     </ul>
   </nav>
   <main>
