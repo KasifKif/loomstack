@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import os
 import re
+from collections import deque
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -88,7 +89,7 @@ def _build_env(endpoint: str, model: str) -> dict[str, str]:
     return env
 
 
-def _parse_tail(lines: list[str]) -> tuple[bool, str | None, str | None, int, float]:
+def _parse_tail(lines: deque[str] | list[str]) -> tuple[bool, str | None, str | None, int, float]:
     """
     Scan the tail lines for outcome signals.
 
@@ -125,16 +126,13 @@ def _parse_tail(lines: list[str]) -> tuple[bool, str | None, str | None, int, fl
 async def _stream_to_log(
     stream: asyncio.StreamReader,
     log_fh: aiofiles.threadpool.AsyncTextIOWrapper,  # type: ignore[name-defined]
-    ring: list[str],
-    ring_size: int,
+    ring: deque[str],
 ) -> None:
-    """Read lines from stream, write to log file, keep last ring_size in ring."""
+    """Read lines from stream, write to log file, keep last N in ring (deque maxlen)."""
     async for raw_line in stream:
         line = raw_line.decode(errors="replace")
         await log_fh.write(line)
         ring.append(line.rstrip())
-        if len(ring) > ring_size:
-            ring.pop(0)
 
 
 def _write_run_log_frontmatter(task_id: str, model: str, endpoint: str) -> str:
@@ -202,7 +200,7 @@ async def run_claude_code(
         Always returns (never raises). Failures are encoded in the result.
     """
     env = _build_env(endpoint, model)
-    ring: list[str] = []
+    ring: deque[str] = deque(maxlen=_TAIL_LINES)
 
     run_log_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -241,7 +239,7 @@ async def run_claude_code(
 
             try:
                 await asyncio.wait_for(
-                    _stream_to_log(proc.stdout, log_fh, ring, _TAIL_LINES),
+                    _stream_to_log(proc.stdout, log_fh, ring),
                     timeout=timeout_s,
                 )
                 await proc.wait()
