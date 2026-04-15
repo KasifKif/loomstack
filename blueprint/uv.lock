@@ -971,6 +971,7 @@ dependencies = [
     { name = "google-genai" },
     { name = "httpx" },
     { name = "jinja2" },
+    { name = "markdown2" },
     { name = "openai" },
     { name = "portalocker" },
     { name = "pydantic" },
@@ -1001,6 +1002,7 @@ requires-dist = [
     { name = "google-genai", specifier = ">=0.8" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "jinja2", specifier = ">=3.1" },
+    { name = "markdown2", specifier = ">=2.4" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
     { name = "openai", specifier = ">=1.30" },
     { name = "portalocker", specifier = ">=2.8" },
@@ -1018,6 +1020,15 @@ requires-dist = [
     { name = "websockets", specifier = ">=12.0" },
 ]
 provides-extras = ["dev"]
+
+[[package]]
+name = "markdown2"
+version = "2.5.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/ae/07d4a5fcaa5509221287d289323d75ac8eda5a5a4ac9de2accf7bbcc2b88/markdown2-2.5.5.tar.gz", hash = "sha256:001547e68f6e7fcf0f1cb83f7e82f48aa7d48b2c6a321f0cd20a853a8a2d1664", size = 157249, upload-time = "2026-03-02T20:46:53.411Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/43/af/4b3891eb0a49d6cfd5cbf3e9bf514c943afc2b0f13e2c57cc57cd88ecc21/markdown2-2.5.5-py3-none-any.whl", hash = "sha256:be798587e09d1f52d2e4d96a649c4b82a778c75f9929aad52a2c95747fa26941", size = 56250, upload-time = "2026-03-02T20:46:52.032Z" },
+]
 
 [[package]]
 name = "markupsafe"

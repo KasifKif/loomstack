@@ -68,6 +68,9 @@
           </span>
         </div>
       </div>
+      <div class="detail-actions" style="margin-top: 1rem;">
+        <a href="/tasks/{{ task.task_id }}/log" class="btn btn-log" style="width: 100%; text-align: center;">View Run Log</a>
+      </div>
       {% else %}
       <p class="no-meta">No run data available yet.</p>
       {% endif %}
@@ -171,5 +174,26 @@
   
   .run-meta a:hover {
     text-decoration: underline;
+  }
+
+  .btn {
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .btn-log {
+    background: #34495e;
+    color: white;
+  }
+
+  .btn-log:hover {
+    background: #5d6d7e;
   }
 </style>
