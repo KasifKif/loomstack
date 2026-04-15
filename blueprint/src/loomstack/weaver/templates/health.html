@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Health{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>GX10 Health</h1>
+</div>
+
+<div id="health-panel"
+     hx-get="/api/health-fragment"
+     hx-trigger="every 15s"
+     hx-swap="outerHTML">
+  {% include "health_fragment.html" %}
+</div>
+{% endblock %}

@@ -1,0 +1,40 @@
+<div id="health-panel"
+     hx-get="/api/health-fragment"
+     hx-trigger="every 15s"
+     hx-swap="outerHTML">
+
+  <div class="status-card {% if status.is_healthy %}status-ok{% else %}status-err{% endif %}">
+    <span class="status-dot"></span>
+    <span class="status-label">
+      {% if status.is_healthy %}Online{% else %}Offline{% endif %}
+    </span>
+    {% if status.error %}
+    <span class="status-error-msg">— {{ status.error }}</span>
+    {% endif %}
+  </div>
+
+  {% if status.model_id %}
+  <div class="info-row">
+    <span class="info-label">Model</span>
+    <span class="info-value mono">{{ status.model_id }}</span>
+  </div>
+  {% endif %}
+
+  {% if status.slots_total > 0 %}
+  <div class="info-row">
+    <span class="info-label">Slots</span>
+    <span class="info-value">{{ status.slots_active }} / {{ status.slots_total }} active</span>
+  </div>
+  <div class="slot-bar">
+    <div class="slot-fill" style="width: {{ (status.slots_active / status.slots_total * 100)|int }}%"></div>
+  </div>
+  {% endif %}
+
+  {% if status.context_used > 0 %}
+  <div class="info-row">
+    <span class="info-label">Max context</span>
+    <span class="info-value mono">{{ status.context_used }} tokens</span>
+  </div>
+  {% endif %}
+
+</div>
