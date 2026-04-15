@@ -122,7 +122,7 @@ def test_post_chat_llm_error_returns_502(client: TestClient) -> None:
         resp = client.post("/api/chat", json={"message": "Hi"})
 
     assert resp.status_code == 502
-    assert "connection refused" in resp.json()["detail"]
+    assert resp.json()["detail"] == "LLM request failed"
 
 
 def test_post_chat_llm_error_does_not_corrupt_history(client: TestClient) -> None:
@@ -171,6 +171,17 @@ def test_ws_chat_empty_message_sends_error(client: TestClient) -> None:
 
     assert msg["type"] == "error"
     assert "empty" in msg["content"].lower()
+
+
+def test_ws_chat_malformed_json_sends_error(client: TestClient) -> None:
+    with client.websocket_connect("/ws/chat") as ws:
+        ws.send_text("this is not json")
+        msg = ws.receive_json()
+        # Connection should survive — send a valid message after
+        ws.send_json({"message": "hi", "conversation_id": "bad-json-test"})
+
+    assert msg["type"] == "error"
+    assert "json" in msg["content"].lower()
 
 
 def test_ws_chat_llm_error_sends_error_then_done(client: TestClient) -> None:

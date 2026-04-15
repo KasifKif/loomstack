@@ -32,12 +32,18 @@ async def chat_page(request: Request) -> Response:
 
 # In-memory conversation store: conversation_id -> deque of message dicts.
 # Deques are capped at _HISTORY_MAX; oldest messages drop off automatically.
+# _MAX_CONVERSATIONS prevents unbounded memory growth — oldest entry is evicted.
 _HISTORY_MAX = 50
+_MAX_CONVERSATIONS = 200
 _conversations: dict[str, deque[dict[str, str]]] = {}
 
 
 def _get_history(conversation_id: str) -> deque[dict[str, str]]:
     if conversation_id not in _conversations:
+        if len(_conversations) >= _MAX_CONVERSATIONS:
+            # Evict oldest (first-inserted) entry
+            oldest = next(iter(_conversations))
+            del _conversations[oldest]
         _conversations[conversation_id] = deque(maxlen=_HISTORY_MAX)
     return _conversations[conversation_id]
 
@@ -65,7 +71,11 @@ async def ws_chat(
 
     try:
         while True:
-            data: Any = await websocket.receive_json()
+            try:
+                data: Any = await websocket.receive_json()
+            except ValueError:
+                await websocket.send_json({"type": "error", "content": "Invalid JSON"})
+                continue
 
             message = data.get("message", "").strip()
             if not message:
@@ -83,7 +93,7 @@ async def ws_chat(
                     await websocket.send_json({"type": "token", "content": token})
             except LLMClientError as exc:
                 log.warning("ws_chat.llm_error", error=str(exc))
-                await websocket.send_json({"type": "error", "content": str(exc)})
+                await websocket.send_json({"type": "error", "content": "LLM request failed"})
                 # Pop the user message we already appended so history stays clean.
                 history.pop()
                 await websocket.send_json({"type": "done"})
@@ -129,8 +139,9 @@ async def post_chat(
     try:
         reply = await client.complete(list(history))
     except LLMClientError as exc:
+        log.warning("post_chat.llm_error", error=str(exc))
         history.pop()
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        raise HTTPException(status_code=502, detail="LLM request failed") from exc
 
     history.append({"role": "assistant", "content": reply})
     return ChatResponse(reply=reply, conversation_id=conversation_id)

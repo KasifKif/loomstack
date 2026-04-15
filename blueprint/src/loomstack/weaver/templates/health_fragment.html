@@ -30,10 +30,10 @@
   </div>
   {% endif %}
 
-  {% if status.context_used > 0 %}
+  {% if status.context_window > 0 %}
   <div class="info-row">
-    <span class="info-label">Max context</span>
-    <span class="info-value mono">{{ status.context_used }} tokens</span>
+    <span class="info-label">Context window</span>
+    <span class="info-value mono">{{ status.context_window }} tokens</span>
   </div>
   {% endif %}
 

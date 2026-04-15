@@ -1,5 +1,7 @@
 """Weaver configuration via environment / .env file."""
 
+import functools
+
 from pydantic_settings import BaseSettings
 
 
@@ -22,6 +24,7 @@ class WeaverSettings(BaseSettings):
     discord_channel_ids: str = ""  # comma-separated watched channel IDs
 
 
+@functools.lru_cache(maxsize=1)
 def get_settings() -> WeaverSettings:
-    """Return a cached settings instance."""
+    """Return a cached settings instance (parsed once from env)."""
     return WeaverSettings()
