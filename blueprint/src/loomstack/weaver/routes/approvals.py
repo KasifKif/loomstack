@@ -69,7 +69,7 @@ async def approve_task(
 
     if request.headers.get("HX-Request"):
         return HTMLResponse(
-            '<span class="badge status-done">Approved</span>',
+            '<span class="badge review-approved">Approved</span>',
             status_code=201,
         )
     return {"status": "approved", "task_id": task_id}

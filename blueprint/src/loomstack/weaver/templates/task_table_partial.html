@@ -5,25 +5,12 @@
   <td class="task-role">{{ task.role }}</td>
   <td><span class="badge status-{{ task.status }}">{{ task.status }}</span></td>
   <td class="task-deps">{{ task.depends_on | join(', ') }}</td>
-  <td class="task-review">{% if task.human_review %}Yes{% else %}No{% endif %}</td>
-  <td class="task-actions">
-    {% if task.human_review and task.task_id not in approved_ids and task.status not in ["done", "failed"] %}
-    <button class="btn btn-approve"
-            hx-post="/api/approve/{{ task.task_id }}"
-            hx-swap="outerHTML"
-            onclick="event.stopPropagation()">
-      Approve
-    </button>
-    {% elif task.human_review and task.task_id in approved_ids %}
-    <span class="badge status-done">Approved</span>
-    {% endif %}
-    {% if task.status != "pending" %}
-    <a href="/tasks/{{ task.task_id }}/log"
-       class="btn btn-log"
-       onclick="event.stopPropagation()">
-      Log
-    </a>
-    {% endif %}
+  <td class="task-review">
+    {%- if not task.human_review %}<span class="badge review-na">N/A</span>
+    {%- elif task.task_id in approved_ids %}<span class="badge review-approved">Approved</span>
+    {%- else %}<button class="btn review-approve" hx-post="/api/approve/{{ task.task_id }}" hx-target="this" hx-swap="outerHTML" onclick="event.stopPropagation()">Approve</button>
+    {%- endif %}
+    {%- if task.status != "pending" %} <a href="/tasks/{{ task.task_id }}/log" class="btn btn-log" onclick="event.stopPropagation()">Log</a>{% endif %}
   </td>
 </tr>
 {% endfor %}
