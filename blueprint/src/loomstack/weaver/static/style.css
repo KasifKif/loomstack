@@ -183,3 +183,58 @@ button:disabled { opacity: 0.4; cursor: default; }
 
 /* Connection indicator via data attribute */
 body[data-connected="0"] #msg-input::placeholder { color: #7a3a3a; }
+
+/* ---- Health page -------------------------------------------------------- */
+
+.page-header { padding: 1.25rem 1.5rem 0.5rem; }
+.page-header h1 { font-size: 1.1rem; font-weight: 600; color: var(--text); }
+
+.status-card {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1rem 1.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+
+.status-ok  { background: #0d2b1a; border-color: #1a5c30; }
+.status-err { background: #2b0d0d; border-color: #5c1a1a; }
+
+.status-dot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-ok  .status-dot { background: #3ddc84; box-shadow: 0 0 6px #3ddc84; }
+.status-err .status-dot { background: #ff5555; box-shadow: 0 0 6px #ff5555; }
+
+.status-label { color: var(--text); }
+.status-error-msg { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
+
+.info-row {
+  display: flex;
+  gap: 1rem;
+  padding: 0.35rem 1.5rem;
+  font-size: 0.875rem;
+}
+.info-label { color: var(--muted); width: 100px; flex-shrink: 0; }
+.info-value  { color: var(--text); }
+.mono { font-family: ui-monospace, monospace; }
+
+.slot-bar {
+  margin: 0.25rem 1.5rem 0.5rem;
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.slot-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
