@@ -7,17 +7,19 @@
   <td class="task-deps">{{ task.depends_on | join(', ') }}</td>
   <td class="task-review">{% if task.human_review %}Yes{% else %}No{% endif %}</td>
   <td class="task-actions">
-    {% if task.human_review and task.status == "blocked" %}
-    <button class="btn btn-approve" 
-            hx-post="/api/approve/{{ task.task_id }}" 
+    {% if task.human_review and task.task_id not in approved_ids and task.status not in ["done", "failed"] %}
+    <button class="btn btn-approve"
+            hx-post="/api/approve/{{ task.task_id }}"
             hx-swap="outerHTML"
             onclick="event.stopPropagation()">
       Approve
     </button>
+    {% elif task.human_review and task.task_id in approved_ids %}
+    <span class="badge status-done">Approved</span>
     {% endif %}
     {% if task.status != "pending" %}
-    <a href="/tasks/{{ task.task_id }}/log" 
-       class="btn btn-log" 
+    <a href="/tasks/{{ task.task_id }}/log"
+       class="btn btn-log"
        onclick="event.stopPropagation()">
       Log
     </a>

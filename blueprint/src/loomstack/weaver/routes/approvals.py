@@ -7,7 +7,8 @@ from pathlib import Path
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 from loomstack.core.plan_parser import PlanParseError, parse_plan_file
@@ -39,13 +40,15 @@ class PendingApprovalsResponse(BaseModel):
     tasks: list[PendingApproval]
 
 
-@router.post("/approve/{task_id}", status_code=status.HTTP_201_CREATED)
+@router.post("/approve/{task_id}", status_code=status.HTTP_201_CREATED, response_model=None)
 async def approve_task(
     task_id: str,
+    request: Request,
     settings: Annotated[WeaverSettings, Depends(get_settings)],
-) -> dict[str, str]:
+) -> dict[str, str] | HTMLResponse:
     """
     Create a marker file to approve a task. Idempotent.
+    Returns HTML badge when called from HTMX, JSON otherwise.
     """
     _validate_task_id(task_id)
     project_dir = Path(settings.loomstack_project_dir)
@@ -63,6 +66,12 @@ async def approve_task(
         ) from exc
 
     logger.info("task_approved", task_id=task_id)
+
+    if request.headers.get("HX-Request"):
+        return HTMLResponse(
+            '<span class="badge status-done">Approved</span>',
+            status_code=201,
+        )
     return {"status": "approved", "task_id": task_id}
 
 

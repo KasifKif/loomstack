@@ -131,6 +131,14 @@ async def get_task_detail(
     return TaskDetail(**task.model_dump(), status=status, run_meta=run_meta)
 
 
+def _approved_task_ids(project_dir: Path) -> set[str]:
+    """Return set of task IDs that have approval markers."""
+    approvals_dir = project_dir / ".loomstack" / "approvals"
+    if not approvals_dir.is_dir():
+        return set()
+    return {p.name for p in approvals_dir.iterdir() if p.is_file()}
+
+
 @router.get("/tasks", response_class=HTMLResponse)
 async def tasks_page(
     request: Request,
@@ -140,17 +148,20 @@ async def tasks_page(
     Render the task list and dependency graph page.
     """
     plan_res = await list_tasks(settings)
+    project_dir = Path(settings.loomstack_project_dir)
+    approved = _approved_task_ids(project_dir)
     templates = cast("Jinja2Templates", request.app.state.templates)
+
+    ctx = {
+        "tasks": [t.model_dump() for t in plan_res.tasks],
+        "approved_ids": approved,
+    }
 
     # If it's an HTMX request for the table, return only the tbody content
     if request.headers.get("HX-Request") and request.headers.get("HX-Target") == "task-table-body":
         return cast(
             "Response",
-            templates.TemplateResponse(
-                request,
-                "task_table_partial.html",
-                {"tasks": [t.model_dump() for t in plan_res.tasks]},
-            ),
+            templates.TemplateResponse(request, "task_table_partial.html", ctx),
         )
 
     return cast(
@@ -160,7 +171,7 @@ async def tasks_page(
             "tasks.html",
             {
                 "title": plan_res.title,
-                "tasks": [t.model_dump() for t in plan_res.tasks],
+                **ctx,
             },
         ),
     )
