@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -96,7 +96,7 @@ class TestReadLedger:
     def test_reads_today_charges(self, tmp_path: Path) -> None:
         path = tmp_path / "ledger.jsonl"
         today = datetime.now(tz=UTC).date()
-        ts = datetime(today.year, today.month, today.day, 10, 0, tzinfo=timezone.utc).isoformat()
+        ts = datetime(today.year, today.month, today.day, 10, 0, tzinfo=UTC).isoformat()
         write_ledger(
             path,
             [
@@ -130,7 +130,7 @@ class TestReadLedger:
     def test_ignores_non_charge_entries(self, tmp_path: Path) -> None:
         path = tmp_path / "ledger.jsonl"
         today = datetime.now(tz=UTC).date()
-        ts = datetime(today.year, today.month, today.day, tzinfo=timezone.utc).isoformat()
+        ts = datetime(today.year, today.month, today.day, tzinfo=UTC).isoformat()
         write_ledger(
             path,
             [{"ts": ts, "tier": "code_worker", "task_id": "T-001", "usd": 5.0, "type": "check"}],
@@ -267,7 +267,7 @@ class TestBudgetStartupLoad:
     async def test_loads_existing_ledger(self, tmp_path: Path) -> None:
         ledger = tmp_path / "ledger.jsonl"
         today = datetime.now(tz=UTC).date()
-        ts = datetime(today.year, today.month, today.day, tzinfo=timezone.utc).isoformat()
+        ts = datetime(today.year, today.month, today.day, tzinfo=UTC).isoformat()
         write_ledger(
             ledger,
             [
@@ -283,7 +283,7 @@ class TestBudgetStartupLoad:
     async def test_check_uses_loaded_spend(self, tmp_path: Path) -> None:
         ledger = tmp_path / "ledger.jsonl"
         today = datetime.now(tz=UTC).date()
-        ts = datetime(today.year, today.month, today.day, tzinfo=timezone.utc).isoformat()
+        ts = datetime(today.year, today.month, today.day, tzinfo=UTC).isoformat()
         write_ledger(
             ledger,
             [{"ts": ts, "tier": "code_worker", "task_id": "T-001", "usd": 0.90, "type": "charge"}],
@@ -332,7 +332,7 @@ class TestBudgetRollover:
 
 class TestBudgetExceeded:
     def test_fields(self) -> None:
-        resets_at = datetime(2026, 4, 14, tzinfo=timezone.utc)
+        resets_at = datetime(2026, 4, 14, tzinfo=UTC)
         exc = BudgetExceeded(
             tier="architect",
             cap_usd=2.0,

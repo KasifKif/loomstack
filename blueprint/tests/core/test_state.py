@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from loomstack.core.state import (
-    RunMeta,
     TaskStatus,
     _parse_run_meta,
     _task_branch_name,
@@ -15,7 +14,6 @@ from loomstack.core.state import (
     is_approved,
     read_run_meta,
 )
-
 
 # ---------------------------------------------------------------------------
 # _parse_run_meta

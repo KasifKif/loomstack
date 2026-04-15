@@ -6,7 +6,6 @@ import pytest
 
 from loomstack.core.plan_parser import (
     AcceptanceBlock,
-    Plan,
     PlanParseError,
     Role,
     Task,

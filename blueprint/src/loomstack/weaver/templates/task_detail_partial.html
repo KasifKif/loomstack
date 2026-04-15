@@ -1,0 +1,175 @@
+<div class="task-detail">
+  <div class="detail-header">
+    <h4>{{ task.task_id }}</h4>
+    <span class="badge status-{{ task.status }}">{{ task.status }}</span>
+  </div>
+  
+  <div class="detail-body">
+    <p class="description">{{ task.description }}</p>
+    
+    <div class="detail-grid">
+      <div class="detail-item">
+        <label>Role</label>
+        <span>{{ task.role }}</span>
+      </div>
+      <div class="detail-item">
+        <label>Human Review</label>
+        <span>{% if task.human_review %}Yes{% else %}No{% endif %}</span>
+      </div>
+      {% if task.tags %}
+      <div class="detail-item">
+        <label>Tags</label>
+        <span class="tags">{{ task.tags | join(', ') }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if task.depends_on %}
+    <div class="detail-section">
+      <label>Depends On</label>
+      <ul class="deps-list">
+        {% for dep in task.depends_on %}
+        <li>{{ dep }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <div class="detail-section run-meta">
+      <h5>Run Metadata</h5>
+      {% if task.run_meta.status != "pending" %}
+      <div class="detail-grid">
+        <div class="detail-item">
+          <label>Branch</label>
+          <span>{{ task.run_meta.branch or 'N/A' }}</span>
+        </div>
+        <div class="detail-item">
+          <label>PR URL</label>
+          <span>
+            {% if task.run_meta.pr_url %}
+            <a href="{{ task.run_meta.pr_url }}" target="_blank">View PR</a>
+            {% else %}
+            N/A
+            {% endif %}
+          </span>
+        </div>
+        <div class="detail-item">
+          <label>Retry Count</label>
+          <span>{{ task.run_meta.retry_count }}</span>
+        </div>
+        <div class="detail-item">
+          <label>Cost</label>
+          <span>
+            {% if task.run_meta.cost_usd is not none %}
+            ${{ "%.4f"|format(task.run_meta.cost_usd) }}
+            {% else %}
+            $0.0000
+            {% endif %}
+          </span>
+        </div>
+      </div>
+      {% else %}
+      <p class="no-meta">No run data available yet.</p>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+  .task-detail {
+    color: #e0e0e0;
+  }
+  
+  .detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+  }
+  
+  .detail-header h4 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #3498db;
+  }
+  
+  .description {
+    line-height: 1.5;
+    margin-bottom: 1.5rem;
+    font-size: 1rem;
+  }
+  
+  .detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  
+  .detail-item {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .detail-item label {
+    font-size: 0.75rem;
+    color: #888;
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+  }
+  
+  .detail-item span {
+    font-size: 0.9rem;
+  }
+  
+  .detail-section {
+    margin-top: 1.5rem;
+    border-top: 1px solid #333;
+    padding-top: 1rem;
+  }
+  
+  .detail-section label {
+    font-size: 0.75rem;
+    color: #888;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+  
+  .detail-section h5 {
+    margin-bottom: 1rem;
+    color: #aaa;
+  }
+  
+  .deps-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .deps-list li {
+    background: #333;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-family: monospace;
+  }
+  
+  .no-meta {
+    font-style: italic;
+    color: #666;
+    font-size: 0.9rem;
+  }
+  
+  .run-meta a {
+    color: #3498db;
+    text-decoration: none;
+  }
+  
+  .run-meta a:hover {
+    text-decoration: underline;
+  }
+</style>
