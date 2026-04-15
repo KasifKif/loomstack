@@ -97,7 +97,12 @@ class OpenAICompatClient:
                     json=payload,
                 ) as response,
             ):
-                self._raise_for_status(response)
+                if response.status_code >= 400:
+                    await response.aread()
+                    body = response.text[:500]
+                    raise LLMClientError(
+                        f"LLM endpoint returned HTTP {response.status_code}: {body}"
+                    )
                 async for chunk in self._iter_sse_chunks(response):
                     yield chunk
         except httpx.ConnectError as exc:
@@ -134,12 +139,9 @@ class OpenAICompatClient:
 
     @staticmethod
     def _raise_for_status(response: httpx.Response) -> None:
-        """Raise LLMClientError for 4xx/5xx responses."""
+        """Raise LLMClientError for 4xx/5xx responses (non-streaming only)."""
         if response.status_code >= 400:
-            try:
-                body = response.text[:500]
-            except Exception:
-                body = "<unreadable>"
+            body = response.text[:500]
             raise LLMClientError(f"LLM endpoint returned HTTP {response.status_code}: {body}")
 
     @staticmethod

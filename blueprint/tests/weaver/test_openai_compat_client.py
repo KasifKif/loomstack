@@ -288,6 +288,7 @@ async def test_stream_complete_raises_on_5xx() -> None:
     mock_response = AsyncMock(spec=httpx.Response)
     mock_response.status_code = 500
     mock_response.text = "Internal Server Error"
+    mock_response.aread = AsyncMock(return_value=b"Internal Server Error")
 
     with patch("httpx.AsyncClient") as mock_cls:
         mock_http = MagicMock()

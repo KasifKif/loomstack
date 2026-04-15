@@ -69,7 +69,7 @@ async def test_fetch_status_healthy() -> None:
     assert status.model_id == "qwen3-coder-next"
     assert status.slots_active == 1
     assert status.slots_total == 2
-    assert status.context_used == 8192
+    assert status.context_window == 8192
     assert status.error is None
 
 
@@ -139,7 +139,7 @@ def test_get_health_json_healthy(client: TestClient) -> None:
         model_id="qwen3-coder-next",
         slots_active=1,
         slots_total=2,
-        context_used=8192,
+        context_window=8192,
     )
     with patch(
         "loomstack.weaver.routes.health.fetch_gx10_status",
@@ -162,7 +162,7 @@ def test_get_health_json_offline(client: TestClient) -> None:
         model_id=None,
         slots_active=0,
         slots_total=0,
-        context_used=0,
+        context_window=0,
         error="Connection refused",
     )
     with patch(
@@ -184,7 +184,7 @@ def test_health_page_renders(client: TestClient) -> None:
         model_id="qwen3-coder-next",
         slots_active=0,
         slots_total=4,
-        context_used=4096,
+        context_window=4096,
     )
     with patch(
         "loomstack.weaver.routes.health.fetch_gx10_status",
@@ -205,7 +205,7 @@ def test_health_page_shows_offline(client: TestClient) -> None:
         model_id=None,
         slots_active=0,
         slots_total=0,
-        context_used=0,
+        context_window=0,
         error="Timeout",
     )
     with patch(
@@ -221,7 +221,7 @@ def test_health_page_shows_offline(client: TestClient) -> None:
 
 def test_health_fragment_renders(client: TestClient) -> None:
     healthy = GX10Status(
-        is_healthy=True, model_id="qwen3", slots_active=1, slots_total=2, context_used=2048
+        is_healthy=True, model_id="qwen3", slots_active=1, slots_total=2, context_window=2048
     )
     with patch(
         "loomstack.weaver.routes.health.fetch_gx10_status",

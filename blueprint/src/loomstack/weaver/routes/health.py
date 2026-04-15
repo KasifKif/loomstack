@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
@@ -25,7 +26,7 @@ class GX10Status:
     model_id: str | None
     slots_active: int
     slots_total: int
-    context_used: int
+    context_window: int
     error: str | None = None
 
 
@@ -39,16 +40,14 @@ async def fetch_gx10_status(base_url: str, api_key: str | None = None) -> GX10St
 
     try:
         async with httpx.AsyncClient(timeout=5.0, headers=headers) as client:
-            health_resp, models_resp, slots_resp = await _gather_requests(
-                client, base
-            )
+            health_resp, models_resp, slots_resp = await _gather_requests(client, base)
     except httpx.ConnectError:
         return GX10Status(
             is_healthy=False,
             model_id=None,
             slots_active=0,
             slots_total=0,
-            context_used=0,
+            context_window=0,
             error="Connection refused",
         )
     except httpx.TimeoutException:
@@ -57,7 +56,7 @@ async def fetch_gx10_status(base_url: str, api_key: str | None = None) -> GX10St
             model_id=None,
             slots_active=0,
             slots_total=0,
-            context_used=0,
+            context_window=0,
             error="Timeout",
         )
 
@@ -71,12 +70,12 @@ async def fetch_gx10_status(base_url: str, api_key: str | None = None) -> GX10St
             data: dict[str, Any] = models_resp.json()
             model_id = str(data["data"][0]["id"])
         except (KeyError, IndexError, ValueError):
-            pass
+            log.warning("health.models_parse_error", body=models_resp.text[:200])
 
     # /slots — active slot count, total, context usage
     slots_active = 0
     slots_total = 0
-    context_used = 0
+    context_window = 0
     if slots_resp.status_code == 200:
         try:
             slots: list[dict[str, Any]] = slots_resp.json()
@@ -84,16 +83,16 @@ async def fetch_gx10_status(base_url: str, api_key: str | None = None) -> GX10St
             for slot in slots:
                 if slot.get("state") == 1:  # 1 = processing
                     slots_active += 1
-                context_used = max(context_used, int(slot.get("n_ctx", 0)))
+                context_window = max(context_window, int(slot.get("n_ctx", 0)))
         except (ValueError, TypeError, KeyError):
-            pass
+            log.warning("health.slots_parse_error", body=slots_resp.text[:200])
 
     return GX10Status(
         is_healthy=is_healthy,
         model_id=model_id,
         slots_active=slots_active,
         slots_total=slots_total,
-        context_used=context_used,
+        context_window=context_window,
     )
 
 
@@ -101,8 +100,6 @@ async def _gather_requests(
     client: httpx.AsyncClient, base: str
 ) -> tuple[httpx.Response, httpx.Response, httpx.Response]:
     """Fire all three GX10 probe requests concurrently."""
-    import asyncio
-
     results = await asyncio.gather(
         client.get(f"{base}/health"),
         client.get(f"{base}/v1/models"),
@@ -135,7 +132,7 @@ async def get_health(
         "model_id": status.model_id,
         "slots_active": status.slots_active,
         "slots_total": status.slots_total,
-        "context_used": status.context_used,
+        "context_window": status.context_window,
         "error": status.error,
     }
 
