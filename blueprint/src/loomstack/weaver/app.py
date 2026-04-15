@@ -16,6 +16,7 @@ def create_app() -> FastAPI:
     templates_dir = _HERE / "templates"
     static_dir = _HERE / "static"
 
+    from loomstack.weaver.routes.approvals import router as approvals_router
     from loomstack.weaver.routes.budget import router as budget_router
     from loomstack.weaver.routes.chat import router as chat_router
     from loomstack.weaver.routes.dashboard import router as dashboard_router
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
     app.include_router(health_router)
     app.include_router(budget_router)
     app.include_router(projects_router)
+    app.include_router(approvals_router)
 
     app.state.templates = Jinja2Templates(directory=str(templates_dir))
 

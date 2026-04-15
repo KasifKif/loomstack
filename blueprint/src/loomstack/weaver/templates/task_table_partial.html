@@ -6,5 +6,22 @@
   <td><span class="badge status-{{ task.status }}">{{ task.status }}</span></td>
   <td class="task-deps">{{ task.depends_on | join(', ') }}</td>
   <td class="task-review">{% if task.human_review %}Yes{% else %}No{% endif %}</td>
+  <td class="task-actions">
+    {% if task.human_review and task.status == "blocked" %}
+    <button class="btn btn-approve" 
+            hx-post="/api/approve/{{ task.task_id }}" 
+            hx-swap="outerHTML"
+            onclick="event.stopPropagation()">
+      Approve
+    </button>
+    {% endif %}
+    {% if task.status != "pending" %}
+    <a href="/tasks/{{ task.task_id }}/log" 
+       class="btn btn-log" 
+       onclick="event.stopPropagation()">
+      Log
+    </a>
+    {% endif %}
+  </td>
 </tr>
 {% endfor %}
