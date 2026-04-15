@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} — Tasks{% endblock %}
+
+{% block content %}
+<div class="tasks-container">
+  <div class="tasks-header">
+    <h1>{{ title }}</h1>
+  </div>
+
+  <div class="tasks-main">
+    <div class="tasks-list">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Description</th>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Depends On</th>
+            <th>Review</th>
+          </tr>
+        </thead>
+        <tbody id="task-table-body" 
+               hx-get="/tasks" 
+               hx-trigger="every 10s" 
+               hx-target="this" 
+               hx-swap="innerHTML">
+          {% include "task_table_partial.html" %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="tasks-visuals">
+      <div class="graph-container">
+        <h3>Dependency Graph</h3>
+        <svg id="tasks-graph" width="100%" height="500"><g/></svg>
+      </div>
+      
+      <div id="side-panel" class="side-panel">
+        <div class="side-panel-header">
+          <h3>Task Detail</h3>
+        </div>
+        <div class="side-panel-content">
+          <p class="placeholder">Select a task to see details.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://d3js.org/d3.v5.min.js" charset="utf-8"></script>
+<script src="https://dagrejs.github.io/project/dagre-d3/latest/dagre-d3.min.js"></script>
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+
+<script>
+  function renderGraph() {
+    const tasks = {{ tasks | tojson }};
+    const g = new dagreD3.graphlib.Graph().setGraph({
+      rankdir: "LR",
+      marginx: 20,
+      marginy: 20
+    });
+
+    tasks.forEach(task => {
+      let color = "#666";
+      switch(task.status) {
+        case 'pending': color = '#666'; break;
+        case 'in_progress': color = '#3498db'; break;
+        case 'proposed': color = '#f1c40f'; break;
+        case 'done': color = '#2ecc71'; break;
+        case 'failed': color = '#e74c3c'; break;
+        case 'blocked': color = '#e67e22'; break;
+      }
+
+      g.setNode(task.task_id, {
+        label: task.task_id,
+        class: `status-${task.status}`,
+        style: `fill: ${color}; stroke: #fff; cursor: pointer;`,
+        labelStyle: "fill: #fff; font-weight: bold;"
+      });
+    });
+
+    tasks.forEach(task => {
+      task.depends_on.forEach(dep => {
+        g.setEdge(dep, task.task_id, {
+          style: "stroke: #888; fill: none; stroke-width: 1.5px;",
+          arrowheadStyle: "fill: #888"
+        });
+      });
+    });
+
+    const svg = d3.select("#tasks-graph"),
+          inner = svg.select("g");
+
+    const render = new dagreD3.render();
+    render(inner, g);
+
+    inner.selectAll("g.node")
+      .on("click", function(id) {
+        showTaskDetail(id);
+      });
+
+    // Zoom and pan
+    const zoom = d3.zoom().on("zoom", function() {
+      inner.attr("transform", d3.event.transform);
+    });
+    svg.call(zoom);
+
+    // Initial scale/center
+    const initialScale = 0.75;
+    svg.call(zoom.transform, d3.zoomIdentity.translate(20, 20).scale(initialScale));
+  }
+
+  function showTaskDetail(taskId) {
+    // We use the /tasks/{task_id} route for HTML detail panel
+    htmx.ajax('GET', `/tasks/${taskId}`, {target:'#side-panel .side-panel-content', swap:'innerHTML'});
+    
+    // Highlight the row in the table
+    document.querySelectorAll('.task-row').forEach(row => {
+      row.classList.remove('active');
+      if (row.querySelector('.task-id').textContent === taskId) {
+        row.classList.add('active');
+      }
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", renderGraph);
+  
+  // Re-render graph when HTMX updates the table (optional, but keep data in sync)
+  document.body.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.id === 'task-table-body') {
+      // In a real app, we'd might want to fetch fresh graph data too
+      // For now, we only update the table.
+    }
+  });
+</script>
+
+<style>
+  .tasks-container {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .tasks-header {
+    margin-bottom: 2rem;
+  }
+  
+  .tasks-main {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 2rem;
+  }
+  
+  .tasks-list {
+    overflow-x: auto;
+  }
+  
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #1a1a1a;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  
+  th {
+    background: #252525;
+    text-align: left;
+    padding: 1rem;
+    font-size: 0.9rem;
+    color: #aaa;
+    border-bottom: 2px solid #333;
+  }
+  
+  td {
+    padding: 1rem;
+    border-bottom: 1px solid #333;
+    font-size: 0.95rem;
+  }
+  
+  .task-row {
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  .task-row:hover {
+    background: #2a2a2a;
+  }
+  
+  .task-row.active {
+    background: #333;
+    border-left: 4px solid #3498db;
+  }
+  
+  .task-id {
+    font-family: monospace;
+    font-weight: bold;
+    color: #3498db;
+  }
+  
+  .badge {
+    padding: 0.25rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+  }
+  
+  .status-pending { background: #444; color: #ccc; }
+  .status-in_progress { background: #2980b9; color: #fff; }
+  .status-proposed { background: #f1c40f; color: #000; }
+  .status-done { background: #27ae60; color: #fff; }
+  .status-failed { background: #c0392b; color: #fff; }
+  .status-blocked { background: #d35400; color: #fff; }
+  
+  .tasks-visuals {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+  }
+  
+  .graph-container {
+    background: #1a1a1a;
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid #333;
+  }
+  
+  .graph-container h3 {
+    margin-bottom: 1rem;
+    color: #aaa;
+    font-size: 1rem;
+  }
+  
+  .side-panel {
+    background: #1a1a1a;
+    border-radius: 8px;
+    border: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+    min-height: 300px;
+  }
+  
+  .side-panel-header {
+    background: #252525;
+    padding: 1rem;
+    border-bottom: 1px solid #333;
+  }
+  
+  .side-panel-content {
+    padding: 1.5rem;
+    flex-grow: 1;
+  }
+  
+  .placeholder {
+    color: #666;
+    font-style: italic;
+    text-align: center;
+    margin-top: 2rem;
+  }
+  
+  /* Graph styles */
+  .node rect {
+    stroke-width: 2px;
+  }
+  
+  .edgePath path {
+    stroke: #555;
+    fill: none;
+    stroke-width: 1.5px;
+  }
+  
+  @media (max-width: 1200px) {
+    .tasks-main {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+{% endblock %}

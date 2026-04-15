@@ -1,0 +1,10 @@
+{% for task in tasks %}
+<tr class="task-row" onclick="showTaskDetail('{{ task.task_id }}')">
+  <td class="task-id">{{ task.task_id }}</td>
+  <td class="task-desc">{{ task.description }}</td>
+  <td class="task-role">{{ task.role }}</td>
+  <td><span class="badge status-{{ task.status }}">{{ task.status }}</span></td>
+  <td class="task-deps">{{ task.depends_on | join(', ') }}</td>
+  <td class="task-review">{% if task.human_review %}Yes{% else %}No{% endif %}</td>
+</tr>
+{% endfor %}

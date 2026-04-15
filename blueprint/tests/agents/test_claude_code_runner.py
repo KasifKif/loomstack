@@ -23,7 +23,6 @@ from loomstack.agents.claude_code_runner import (
 )
 from loomstack.core.plan_parser import Task
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -172,7 +171,7 @@ def aiter_from_list(items: list[bytes]):  # type: ignore[return]
         def __init__(self) -> None:
             self._items = iter(items)
 
-        def __aiter__(self) -> "_Iter":
+        def __aiter__(self) -> _Iter:
             return self
 
         async def __anext__(self) -> bytes:

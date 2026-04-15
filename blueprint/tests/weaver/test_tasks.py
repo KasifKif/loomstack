@@ -44,10 +44,9 @@ def client(test_plan_file: Path) -> TestClient:
     return TestClient(app)
 
 
-@pytest.mark.asyncio
-async def test_list_tasks_includes_status(client: TestClient) -> None:
+def test_list_tasks_includes_status(client: TestClient) -> None:
     """GET /api/tasks returns the parsed plan with status."""
-    with patch("loomstack.weaver.routes.tasks.derive_status") as mock_derive:
+    with patch("loomstack.weaver.routes.tasks.derive_status", new_callable=AsyncMock) as mock_derive:
         # Mock statuses for two tasks
         mock_derive.side_effect = [TaskStatus.DONE, TaskStatus.IN_PROGRESS]
 
@@ -65,8 +64,7 @@ async def test_list_tasks_includes_status(client: TestClient) -> None:
         assert data["tasks"][1]["status"] == "in_progress"
 
 
-@pytest.mark.asyncio
-async def test_get_task_detail_success(client: TestClient) -> None:
+def test_get_task_detail_success(client: TestClient) -> None:
     """GET /api/tasks/<id> returns full task detail."""
     mock_run_meta = RunMeta(
         status=TaskStatus.DONE, tier="code_worker", retry_count=0, cost_usd=0.05
@@ -87,6 +85,60 @@ async def test_get_task_detail_success(client: TestClient) -> None:
         assert data["status"] == "done"
         assert data["run_meta"]["cost_usd"] == 0.05
         assert data["role"] == "code_worker"
+
+
+def test_tasks_page_renders_html(client: TestClient) -> None:
+    """GET /tasks renders the HTML task list page."""
+    with patch("loomstack.weaver.routes.tasks.derive_status", new_callable=AsyncMock) as mock_derive:
+        mock_derive.side_effect = [TaskStatus.DONE, TaskStatus.IN_PROGRESS]
+
+        response = client.get("/tasks")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+        # Check for task IDs and badge text
+        html = response.text
+        assert "TP-001" in html
+        assert "TP-002" in html
+        assert "done" in html
+        assert "in_progress" in html
+        assert "Dependency Graph" in html
+
+
+def test_tasks_page_htmx_partial(client: TestClient) -> None:
+    """GET /tasks returns only the tbody partial for HTMX requests."""
+    with patch("loomstack.weaver.routes.tasks.derive_status", new_callable=AsyncMock) as mock_derive:
+        mock_derive.side_effect = [TaskStatus.DONE, TaskStatus.IN_PROGRESS]
+
+        response = client.get(
+            "/tasks", headers={"HX-Request": "true", "HX-Target": "task-table-body"}
+        )
+        assert response.status_code == 200
+        html = response.text
+
+        # Should contain rows but NOT the full page structure
+        assert "TP-001" in html
+        assert "<tr" in html
+        assert "<html" not in html
+        assert "Dependency Graph" not in html
+
+
+def test_task_detail_html_partial(client: TestClient) -> None:
+    """GET /tasks/<id> returns the HTML detail partial."""
+    with (
+        patch("loomstack.weaver.routes.tasks.derive_status", new_callable=AsyncMock) as mock_status,
+        patch("loomstack.weaver.routes.tasks.derive_run_meta", new_callable=AsyncMock) as mock_meta,
+    ):
+        mock_status.return_value = TaskStatus.DONE
+        mock_meta.return_value = RunMeta(status=TaskStatus.DONE)
+
+        response = client.get("/tasks/TP-001")
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+
+        html = response.text
+        assert "TP-001" in html
+        assert "Run Metadata" in html
 
 
 def test_get_task_detail_not_found(client: TestClient) -> None:
@@ -112,8 +164,26 @@ def test_list_tasks_not_found(test_plan_file: Path) -> None:
     assert response.status_code == 404
 
 
+def test_list_tasks_missing_loomstack_dir(test_plan_file: Path) -> None:
+    """GET /api/tasks returns PENDING for all tasks if .loomstack/ is missing."""
+    app = create_app()
+
+    def override_settings() -> WeaverSettings:
+        # test_plan_file.parent exists but has no .loomstack/
+        return WeaverSettings(loomstack_project_dir=str(test_plan_file.parent))
+
+    app.dependency_overrides[get_settings] = override_settings
+    client = TestClient(app)
+
+    response = client.get("/api/tasks")
+    assert response.status_code == 200
+    data = response.json()
+    for task in data["tasks"]:
+        assert task["status"] == "pending"
+
+
 def test_list_tasks_parse_error(tmp_path: Path) -> None:
-    """GET /api/tasks returns 500 if PLAN.md is malformed."""
+    """GET /api/tasks returns 422 if PLAN.md is malformed."""
     plan_path = tmp_path / "PLAN.md"
     plan_path.write_text("## Task: TP-001\nmalformed: [yaml")
 
@@ -126,4 +196,4 @@ def test_list_tasks_parse_error(tmp_path: Path) -> None:
     client = TestClient(app)
 
     response = client.get("/api/tasks")
-    assert response.status_code == 500
+    assert response.status_code == 422
