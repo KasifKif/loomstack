@@ -75,7 +75,7 @@ def test_list_pending_approvals(client: TestClient, test_plan_file: Path) -> Non
     response = client.get("/api/pending-approvals")
     assert response.status_code == 200
     data = response.json()
-    
+
     # TP-001 and TP-003 have human_review: true
     task_ids = [t["task_id"] for t in data["tasks"]]
     assert "TP-001" in task_ids
@@ -85,10 +85,16 @@ def test_list_pending_approvals(client: TestClient, test_plan_file: Path) -> Non
 
     # Approve one
     client.post("/api/approve/TP-001")
-    
+
     response = client.get("/api/pending-approvals")
     data = response.json()
     task_ids = [t["task_id"] for t in data["tasks"]]
     assert "TP-001" not in task_ids
     assert "TP-003" in task_ids
     assert len(task_ids) == 1
+
+
+def test_approve_invalid_task_id_rejected(client: TestClient) -> None:
+    """POST /api/approve with invalid task ID returns 400."""
+    response = client.post("/api/approve/bad-id")
+    assert response.status_code == 400

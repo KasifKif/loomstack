@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Annotated
 
@@ -9,13 +10,20 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
-from loomstack.core.plan_parser import parse_plan_file
+from loomstack.core.plan_parser import PlanParseError, parse_plan_file
 from loomstack.core.state import approval_marker_path, is_approved
 from loomstack.weaver.config import WeaverSettings, get_settings
 
 logger = structlog.get_logger()
 
 router = APIRouter(prefix="/api", tags=["approvals"])
+
+_TASK_ID_RE = re.compile(r"^[A-Z]{2,4}-\d+$")
+
+
+def _validate_task_id(task_id: str) -> None:
+    if not _TASK_ID_RE.match(task_id):
+        raise HTTPException(status_code=400, detail="Invalid task ID format")
 
 
 class PendingApproval(BaseModel):
@@ -39,6 +47,7 @@ async def approve_task(
     """
     Create a marker file to approve a task. Idempotent.
     """
+    _validate_task_id(task_id)
     project_dir = Path(settings.loomstack_project_dir)
     loomstack_dir = project_dir / ".loomstack"
     marker = approval_marker_path(task_id, loomstack_dir)
@@ -72,7 +81,7 @@ async def list_pending_approvals(
 
     try:
         plan = await parse_plan_file(plan_path)
-    except Exception as exc:
+    except (PlanParseError, OSError) as exc:
         logger.error("plan_parse_failed", path=str(plan_path), error=str(exc))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

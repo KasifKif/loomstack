@@ -30,6 +30,14 @@ logger = structlog.get_logger()
 
 router = APIRouter(tags=["tasks"])
 
+_TASK_ID_RE = re.compile(r"^[A-Z]{2,4}-\d+$")
+
+
+def _validate_task_id(task_id: str) -> None:
+    """Reject task IDs that don't match the expected pattern."""
+    if not _TASK_ID_RE.match(task_id):
+        raise HTTPException(status_code=400, detail="Invalid task ID format")
+
 
 class TaskSummary(Task):
     """Task model extended with current runtime status."""
@@ -93,6 +101,7 @@ async def get_task_detail(
     """
     Return full details for a single task.
     """
+    _validate_task_id(task_id)
     project_dir = Path(settings.loomstack_project_dir)
     plan_path = project_dir / "PLAN.md"
 
@@ -166,7 +175,7 @@ async def get_task_detail_html(
     """
     Return HTML partial for task detail side panel.
     """
-    # Reuse get_task_detail logic
+    _validate_task_id(task_id)
     detail = await get_task_detail(task_id, settings)
     templates = cast("Jinja2Templates", request.app.state.templates)
     return cast(
@@ -188,6 +197,7 @@ async def view_task_log(
     """
     Render the run log for a task as HTML.
     """
+    _validate_task_id(task_id)
     project_dir = Path(settings.loomstack_project_dir)
     run_file = project_dir / ".loomstack" / "runs" / f"{task_id}.md"
 
@@ -210,7 +220,9 @@ async def view_task_log(
     body = body.strip()
 
     # Render markdown to HTML
-    html_body = markdown2.markdown(body, extras=["fenced-code-blocks", "tables"])
+    html_body = markdown2.markdown(
+        body, extras=["fenced-code-blocks", "tables"], safe_mode="escape"
+    )
 
     templates = cast("Jinja2Templates", request.app.state.templates)
     return cast(

@@ -33,6 +33,7 @@ def create_app() -> FastAPI:
     app.include_router(approvals_router)
 
     app.state.templates = Jinja2Templates(directory=str(templates_dir))
+    app.state.templates.env.autoescape = True
 
     # Inject project list into every template so the sidebar can show a selector.
     from loomstack.weaver.config import get_settings, parse_project_dirs
