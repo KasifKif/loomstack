@@ -15,6 +15,12 @@ class WeaverSettings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8400
 
+    # Discord bot relay (optional — only needed when running discord_bot)
+    discord_bot_token: str = ""
+    discord_guild_id: str = ""
+    discord_user_ids: str = ""  # comma-separated allowlisted user IDs
+    discord_channel_ids: str = ""  # comma-separated watched channel IDs
+
 
 def get_settings() -> WeaverSettings:
     """Return a cached settings instance."""
