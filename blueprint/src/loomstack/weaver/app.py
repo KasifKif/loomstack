@@ -16,9 +16,11 @@ def create_app() -> FastAPI:
     templates_dir = _HERE / "templates"
     static_dir = _HERE / "static"
 
+    from loomstack.weaver.routes.chat import router as chat_router
     from loomstack.weaver.routes.tasks import router as tasks_router
 
     app.include_router(tasks_router)
+    app.include_router(chat_router)
 
     app.state.templates = Jinja2Templates(directory=str(templates_dir))
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
