@@ -69,7 +69,7 @@ Every piece of runtime state is a file re-read each cycle.
 |-------|--------|
 | Task definitions | `PLAN.md` (re-parsed every cycle) |
 | Task progress | Git branches + open PRs (via `gh`) |
-| Per-task history | `.loomstack/runs/<task-id>.md` |
+| Per-task history + retry state | `.loomstack/runs/<task-id>.md` (multi-block frontmatter → `RunMeta`) |
 | Cost audit trail | `.loomstack/ledger.jsonl` (append-only, file-locked) |
 | Approval gates | `.loomstack/approvals/<task-id>` marker files |
 | Agent output | Branch commits |

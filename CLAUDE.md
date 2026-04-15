@@ -140,9 +140,10 @@ classifier ──► code_worker ──2 retries──► reviewer ──fails�
                    └── tag: security|breaking_change ──► architect (always, approval required)
 ```
 
-- Retries expand context: first adds failing test output; second adds linked files from failed diff.
+- Retries expand context: first adds failing test output (`TaskContext.prior_error`); second adds linked files from failed diff (`TaskContext.extra_context_files`).
 - `human_review: true` pauses after assigned role completes, waits for approval marker.
 - Architect tasks ALWAYS pause. Write `.loomstack/approvals/<task-id>` to unblock. No exceptions.
+- Retry state (count, tier, last error, last diff) is stored in run-file frontmatter and read back via `RunMeta`.
 
 ## Budget System
 
@@ -153,11 +154,18 @@ classifier ──► code_worker ──2 retries──► reviewer ──fails�
 
 ## State Derivation
 
-`core/state.py::derive_status(task_id) -> TaskStatus` combines:
+`core/state.py` exposes two levels of state query:
+
+- `derive_status(task_id) -> TaskStatus` — the status-only fast path (PENDING / IN_PROGRESS / PROPOSED / BLOCKED / DONE / FAILED).
+- `derive_run_meta(task_id) -> RunMeta` — full run-file metadata including `status`, `tier`, `retry_count`, `last_error`, `last_diff`, cost/token fields. Used by the dispatcher for escalation decisions.
+
+Status derivation combines:
 1. `.loomstack/runs/<task-id>.md` frontmatter `status:` field (authoritative if present)
 2. GitHub: open PR with branch matching pattern → PROPOSED
 3. Local git: feature branch exists → IN_PROGRESS
 4. Else: PENDING
+
+**Run-file multi-block frontmatter:** Run files may contain multiple `---` frontmatter blocks (initial header + completion footer). The parser merges all blocks, with later values overriding earlier ones. This lets `claude_code_runner` append a footer (status: done/failed) without rewriting the initial header.
 
 ## Testing
 
@@ -198,6 +206,7 @@ These need `human_review: true` + architect review for any change:
 | GitHub rate limits | Serialize `gh` calls; respect `X-RateLimit-Remaining` |
 | Opus rate limits on burst | `max_concurrent: 1` for role `architect` (enforced in dispatcher) |
 | Qwen occasionally returns malformed JSON | Wrap parses in `agents/_json_utils.py` retry-with-stricter-prompt helper |
+| `claude_code_runner` parses stdout via regex | Fragile if output format changes. Migrate to `--output-format json` when schema is verified. |
 
 ## Reference Docs
 
