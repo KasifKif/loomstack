@@ -214,3 +214,15 @@ def test_budget_fragment_renders() -> None:
 
     assert resp.status_code == 200
     assert "architect" in resp.text
+
+
+def test_budget_history_rejects_excessive_days() -> None:
+    client, _ = _make_client([])
+    resp = client.get("/api/budget/history?days=9999")
+    assert resp.status_code == 422
+
+
+def test_budget_recent_rejects_zero() -> None:
+    client, _ = _make_client([])
+    resp = client.get("/api/budget/recent?n=0")
+    assert resp.status_code == 422

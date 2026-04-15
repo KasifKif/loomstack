@@ -41,7 +41,7 @@ def test_view_run_log_success(client: TestClient, test_plan_file: Path) -> None:
     task_id = "TP-001"
     run_dir = test_plan_file.parent / ".loomstack" / "runs"
     run_dir.mkdir(parents=True)
-    
+
     run_content = """---
 status: done
 tier: code_worker
@@ -64,7 +64,7 @@ print("hello")
     response = client.get(f"/tasks/{task_id}/log")
     assert response.status_code == 200
     html = response.text
-    
+
     assert "Run Log: TP-001" in html
     assert "done" in html
     assert "$0.0521" in html
@@ -79,7 +79,7 @@ def test_view_run_log_in_progress_has_htmx(client: TestClient, test_plan_file: P
     task_id = "TP-001"
     run_dir = test_plan_file.parent / ".loomstack" / "runs"
     run_dir.mkdir(parents=True, exist_ok=True)
-    
+
     run_content = """---
 status: in_progress
 ---
@@ -90,7 +90,7 @@ Working...
     response = client.get(f"/tasks/{task_id}/log")
     assert response.status_code == 200
     html = response.text
-    
+
     assert 'hx-trigger="every 10s"' in html
     assert f'hx-get="/tasks/{task_id}/log"' in html
 

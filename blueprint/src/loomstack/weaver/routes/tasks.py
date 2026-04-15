@@ -30,6 +30,14 @@ logger = structlog.get_logger()
 
 router = APIRouter(tags=["tasks"])
 
+_TASK_ID_RE = re.compile(r"^[A-Z]{2,4}-\d+$")
+
+
+def _validate_task_id(task_id: str) -> None:
+    """Reject task IDs that don't match the expected pattern."""
+    if not _TASK_ID_RE.match(task_id):
+        raise HTTPException(status_code=400, detail="Invalid task ID format")
+
 
 class TaskSummary(Task):
     """Task model extended with current runtime status."""
@@ -93,6 +101,7 @@ async def get_task_detail(
     """
     Return full details for a single task.
     """
+    _validate_task_id(task_id)
     project_dir = Path(settings.loomstack_project_dir)
     plan_path = project_dir / "PLAN.md"
 
@@ -122,6 +131,14 @@ async def get_task_detail(
     return TaskDetail(**task.model_dump(), status=status, run_meta=run_meta)
 
 
+def _approved_task_ids(project_dir: Path) -> set[str]:
+    """Return set of task IDs that have approval markers."""
+    approvals_dir = project_dir / ".loomstack" / "approvals"
+    if not approvals_dir.is_dir():
+        return set()
+    return {p.name for p in approvals_dir.iterdir() if p.is_file()}
+
+
 @router.get("/tasks", response_class=HTMLResponse)
 async def tasks_page(
     request: Request,
@@ -131,17 +148,20 @@ async def tasks_page(
     Render the task list and dependency graph page.
     """
     plan_res = await list_tasks(settings)
+    project_dir = Path(settings.loomstack_project_dir)
+    approved = _approved_task_ids(project_dir)
     templates = cast("Jinja2Templates", request.app.state.templates)
+
+    ctx = {
+        "tasks": [t.model_dump() for t in plan_res.tasks],
+        "approved_ids": approved,
+    }
 
     # If it's an HTMX request for the table, return only the tbody content
     if request.headers.get("HX-Request") and request.headers.get("HX-Target") == "task-table-body":
         return cast(
             "Response",
-            templates.TemplateResponse(
-                request,
-                "task_table_partial.html",
-                {"tasks": [t.model_dump() for t in plan_res.tasks]},
-            ),
+            templates.TemplateResponse(request, "task_table_partial.html", ctx),
         )
 
     return cast(
@@ -151,7 +171,7 @@ async def tasks_page(
             "tasks.html",
             {
                 "title": plan_res.title,
-                "tasks": [t.model_dump() for t in plan_res.tasks],
+                **ctx,
             },
         ),
     )
@@ -166,7 +186,7 @@ async def get_task_detail_html(
     """
     Return HTML partial for task detail side panel.
     """
-    # Reuse get_task_detail logic
+    _validate_task_id(task_id)
     detail = await get_task_detail(task_id, settings)
     templates = cast("Jinja2Templates", request.app.state.templates)
     return cast(
@@ -188,6 +208,7 @@ async def view_task_log(
     """
     Render the run log for a task as HTML.
     """
+    _validate_task_id(task_id)
     project_dir = Path(settings.loomstack_project_dir)
     run_file = project_dir / ".loomstack" / "runs" / f"{task_id}.md"
 
@@ -210,7 +231,9 @@ async def view_task_log(
     body = body.strip()
 
     # Render markdown to HTML
-    html_body = markdown2.markdown(body, extras=["fenced-code-blocks", "tables"])
+    html_body = markdown2.markdown(
+        body, extras=["fenced-code-blocks", "tables"], safe_mode="escape"
+    )
 
     templates = cast("Jinja2Templates", request.app.state.templates)
     return cast(

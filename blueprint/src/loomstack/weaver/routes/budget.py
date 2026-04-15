@@ -11,7 +11,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import structlog
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
@@ -46,6 +46,7 @@ def _read_ledger_entries(ledger_path: str) -> list[dict[str, Any]]:
             try:
                 entry = json.loads(raw)
             except json.JSONDecodeError:
+                log.warning("ledger_malformed_line", path=ledger_path, line=raw[:120])
                 continue
             if entry.get("type") != "charge":
                 continue
@@ -133,7 +134,7 @@ async def get_budget_today(
 @router.get("/api/budget/history")
 async def get_budget_history(
     settings: Annotated[WeaverSettings, Depends(get_settings)],
-    days: int = 30,
+    days: Annotated[int, Query(ge=1, le=365)] = 30,
 ) -> list[DailyHistoryEntry]:
     """Return daily spend totals for the last N days."""
     entries = _read_ledger_entries(_ledger_path(settings))
@@ -150,7 +151,7 @@ async def get_budget_history(
 @router.get("/api/budget/recent")
 async def get_budget_recent(
     settings: Annotated[WeaverSettings, Depends(get_settings)],
-    n: int = 50,
+    n: Annotated[int, Query(ge=1, le=500)] = 50,
 ) -> list[RecentChargeEntry]:
     """Return the most recent N charge entries."""
     entries = _read_ledger_entries(_ledger_path(settings))

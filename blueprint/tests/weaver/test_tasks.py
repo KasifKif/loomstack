@@ -46,7 +46,9 @@ def client(test_plan_file: Path) -> TestClient:
 
 def test_list_tasks_includes_status(client: TestClient) -> None:
     """GET /api/tasks returns the parsed plan with status."""
-    with patch("loomstack.weaver.routes.tasks.derive_status", new_callable=AsyncMock) as mock_derive:
+    with patch(
+        "loomstack.weaver.routes.tasks.derive_status", new_callable=AsyncMock
+    ) as mock_derive:
         # Mock statuses for two tasks
         mock_derive.side_effect = [TaskStatus.DONE, TaskStatus.IN_PROGRESS]
 
@@ -89,7 +91,9 @@ def test_get_task_detail_success(client: TestClient) -> None:
 
 def test_tasks_page_renders_html(client: TestClient) -> None:
     """GET /tasks renders the HTML task list page."""
-    with patch("loomstack.weaver.routes.tasks.derive_status", new_callable=AsyncMock) as mock_derive:
+    with patch(
+        "loomstack.weaver.routes.tasks.derive_status", new_callable=AsyncMock
+    ) as mock_derive:
         mock_derive.side_effect = [TaskStatus.DONE, TaskStatus.IN_PROGRESS]
 
         response = client.get("/tasks")
@@ -107,7 +111,9 @@ def test_tasks_page_renders_html(client: TestClient) -> None:
 
 def test_tasks_page_htmx_partial(client: TestClient) -> None:
     """GET /tasks returns only the tbody partial for HTMX requests."""
-    with patch("loomstack.weaver.routes.tasks.derive_status", new_callable=AsyncMock) as mock_derive:
+    with patch(
+        "loomstack.weaver.routes.tasks.derive_status", new_callable=AsyncMock
+    ) as mock_derive:
         mock_derive.side_effect = [TaskStatus.DONE, TaskStatus.IN_PROGRESS]
 
         response = client.get(
@@ -197,3 +203,10 @@ def test_list_tasks_parse_error(tmp_path: Path) -> None:
 
     response = client.get("/api/tasks")
     assert response.status_code == 422
+
+
+def test_task_id_invalid_format_rejected(client: TestClient) -> None:
+    """Task IDs not matching [A-Z]{2,4}-\\d+ pattern are rejected with 400."""
+    for bad_id in ["lowercase-001", "TOOLONG-001", "TP_001", "A-1inject"]:
+        response = client.get(f"/api/tasks/{bad_id}")
+        assert response.status_code == 400, f"Expected 400 for {bad_id!r}"
