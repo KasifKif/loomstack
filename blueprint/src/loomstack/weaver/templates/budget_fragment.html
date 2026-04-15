@@ -1,0 +1,31 @@
+<div id="budget-today"
+     hx-get="/api/budget-fragment"
+     hx-trigger="every 30s"
+     hx-swap="outerHTML">
+
+  <div class="budget-summary">
+    <div class="budget-total">
+      <span class="info-label">Today's Spend</span>
+      <span class="budget-amount">${{ "%.4f"|format(today.total_usd) }}</span>
+    </div>
+  </div>
+
+  {% if today.per_tier %}
+  <div class="budget-section">
+    <h2 class="section-title">Per-Tier Breakdown</h2>
+    <table class="data-table compact">
+      <thead>
+        <tr><th>Tier</th><th class="num">USD</th></tr>
+      </thead>
+      <tbody>
+        {% for tier, usd in today.per_tier.items() %}
+        <tr>
+          <td>{{ tier }}</td>
+          <td class="num">${{ "%.4f"|format(usd) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>

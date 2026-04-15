@@ -192,3 +192,25 @@ def test_get_budget_recent_no_ledger() -> None:
 
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def test_budget_page_renders() -> None:
+    today_ts = datetime.now(tz=UTC).isoformat()
+    entries = [_make_entry(tier="code_worker", usd=0.10, ts=today_ts)]
+    client, _ = _make_client(entries)
+    resp = client.get("/budget")
+
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    assert "Budget" in resp.text
+    assert "code_worker" in resp.text
+
+
+def test_budget_fragment_renders() -> None:
+    today_ts = datetime.now(tz=UTC).isoformat()
+    entries = [_make_entry(tier="architect", usd=0.50, ts=today_ts)]
+    client, _ = _make_client(entries)
+    resp = client.get("/api/budget-fragment")
+
+    assert resp.status_code == 200
+    assert "architect" in resp.text

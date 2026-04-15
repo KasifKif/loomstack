@@ -18,9 +18,11 @@ def create_app() -> FastAPI:
 
     from loomstack.weaver.routes.budget import router as budget_router
     from loomstack.weaver.routes.chat import router as chat_router
+    from loomstack.weaver.routes.dashboard import router as dashboard_router
     from loomstack.weaver.routes.health import router as health_router
     from loomstack.weaver.routes.tasks import router as tasks_router
 
+    app.include_router(dashboard_router)
     app.include_router(tasks_router)
     app.include_router(chat_router)
     app.include_router(health_router)
@@ -28,9 +30,5 @@ def create_app() -> FastAPI:
 
     app.state.templates = Jinja2Templates(directory=str(templates_dir))
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
-
-    @app.get("/")
-    async def index() -> dict[str, str]:
-        return {"status": "ok", "service": "weaver"}
 
     return app

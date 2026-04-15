@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Budget{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Budget</h1>
+</div>
+
+<div id="budget-today"
+     hx-get="/api/budget-fragment"
+     hx-trigger="every 30s"
+     hx-swap="outerHTML">
+  {% include "budget_fragment.html" %}
+</div>
+
+<div class="budget-section">
+  <h2 class="section-title">Recent Charges</h2>
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Tier</th>
+        <th>Task</th>
+        <th>Model</th>
+        <th class="num">USD</th>
+        <th class="num">Tokens In</th>
+        <th class="num">Tokens Out</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in recent %}
+      <tr>
+        <td class="mono">{{ entry.ts[:19] }}</td>
+        <td>{{ entry.tier }}</td>
+        <td class="mono">{{ entry.task_id }}</td>
+        <td class="mono">{{ entry.model }}</td>
+        <td class="num">${{ "%.4f"|format(entry.usd) }}</td>
+        <td class="num">{{ entry.tokens_in }}</td>
+        <td class="num">{{ entry.tokens_out }}</td>
+      </tr>
+      {% endfor %}
+      {% if not recent %}
+      <tr><td colspan="7" class="empty-msg">No charges recorded yet</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
