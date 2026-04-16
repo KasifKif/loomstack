@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Workers{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>Worker Tiers</h1>
+</div>
+
+<div class="crud-section">
+  <form class="crud-form"
+        hx-post="/api/workers"
+        hx-target="#workers-tbody"
+        hx-swap="beforeend"
+        hx-on::after-request="if(event.detail.successful) this.reset()">
+    <div class="form-group">
+      <label for="wrk-name">Name</label>
+      <input id="wrk-name" name="name" class="form-input" placeholder="My Worker" required>
+    </div>
+    <div class="form-group">
+      <label for="wrk-tier">Agent Tier</label>
+      <select id="wrk-tier" name="agent_tier" class="form-select">
+        {% for tier in agent_tiers %}
+        <option value="{{ tier }}">{{ tier }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="wrk-provider">Provider</label>
+      <select id="wrk-provider" name="provider_id" class="form-select">
+        {% for provider in providers %}
+        <option value="{{ provider.id }}">{{ provider.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="wrk-model">Model Name</label>
+      <input id="wrk-model" name="model_name" class="form-input" placeholder="qwen3-coder-next">
+    </div>
+    <div class="form-group">
+      <label for="wrk-timeout">Timeout (s)</label>
+      <input id="wrk-timeout" name="timeout_seconds" type="number" class="form-input" value="300" min="1">
+    </div>
+    <div class="form-group form-group--submit">
+      <label>&nbsp;</label>
+      <button type="submit">Add Worker</button>
+    </div>
+  </form>
+</div>
+
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Tier</th>
+        <th>Provider</th>
+        <th>Model</th>
+        <th>Timeout</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="workers-tbody">
+      {% for worker in workers %}
+      {% include "worker_row_partial.html" %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if not workers %}
+  <p class="empty-msg">No workers configured yet.</p>
+  {% endif %}
+</div>
+{% endblock %}
