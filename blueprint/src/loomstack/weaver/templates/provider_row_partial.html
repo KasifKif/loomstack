@@ -1,0 +1,15 @@
+<tr>
+  <td>{{ provider.name }}</td>
+  <td>{{ provider.provider_type }}</td>
+  <td class="mono">{{ provider.base_url }}</td>
+  <td class="num">{{ "%.8f" | format(provider.cost_per_input_token) }} / {{ "%.8f" | format(provider.cost_per_output_token) }}</td>
+  <td class="num">{% if provider.rate_limit_rpm == -1 %}∞{% else %}{{ provider.rate_limit_rpm }}{% endif %}</td>
+  <td class="num">{% if provider.token_limit == -1 %}∞{% else %}{{ provider.token_limit }}{% endif %}</td>
+  <td>
+    <button class="btn-danger"
+            hx-delete="/api/providers/{{ provider.id }}"
+            hx-target="closest tr"
+            hx-swap="outerHTML"
+            hx-confirm="Delete provider '{{ provider.name }}'?">Delete</button>
+  </td>
+</tr>

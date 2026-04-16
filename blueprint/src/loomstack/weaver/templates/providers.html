@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Providers{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h1>API Providers</h1>
+</div>
+
+<div class="crud-section">
+  <form class="crud-form"
+        hx-post="/api/providers"
+        hx-target="#providers-tbody"
+        hx-swap="beforeend"
+        hx-on::after-request="if(event.detail.successful) this.reset()">
+    <div class="form-group">
+      <label for="prov-name">Name</label>
+      <input id="prov-name" name="name" class="form-input" placeholder="My Provider" required>
+    </div>
+    <div class="form-group">
+      <label for="prov-type">Type</label>
+      <select id="prov-type" name="provider_type" class="form-select">
+        <option value="anthropic">Anthropic</option>
+        <option value="gemini">Gemini</option>
+        <option value="openai-compat">OpenAI-compat</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="prov-url">Base URL</label>
+      <input id="prov-url" name="base_url" class="form-input" placeholder="https://api.example.com">
+    </div>
+    <div class="form-group">
+      <label for="prov-key">API Key</label>
+      <input id="prov-key" name="api_key" type="password" class="form-input" placeholder="sk-...">
+    </div>
+    <div class="form-group">
+      <label for="prov-in">Cost/Input token</label>
+      <input id="prov-in" name="cost_per_input_token" type="number" step="any" class="form-input" value="0" min="0">
+    </div>
+    <div class="form-group">
+      <label for="prov-out">Cost/Output token</label>
+      <input id="prov-out" name="cost_per_output_token" type="number" step="any" class="form-input" value="0" min="0">
+    </div>
+    <div class="form-group">
+      <label for="prov-rpm">Rate limit (RPM)</label>
+      <input id="prov-rpm" name="rate_limit_rpm" type="number" class="form-input" value="-1">
+      <label class="unlimited-check"><input type="checkbox" onchange="document.getElementById('prov-rpm').value = this.checked ? -1 : 60"> Unlimited</label>
+    </div>
+    <div class="form-group">
+      <label for="prov-tok">Token limit</label>
+      <input id="prov-tok" name="token_limit" type="number" class="form-input" value="-1">
+      <label class="unlimited-check"><input type="checkbox" onchange="document.getElementById('prov-tok').value = this.checked ? -1 : 100000"> Unlimited</label>
+    </div>
+    <div class="form-group form-group--submit">
+      <label>&nbsp;</label>
+      <button type="submit">Add Provider</button>
+    </div>
+  </form>
+</div>
+
+<div class="table-wrapper">
+  <table class="data-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Type</th>
+        <th>Base URL</th>
+        <th>Cost In/Out</th>
+        <th>Rate Limit</th>
+        <th>Token Limit</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="providers-tbody">
+      {% for provider in providers %}
+      {% include "provider_row_partial.html" %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if not providers %}
+  <p class="empty-msg">No providers configured yet.</p>
+  {% endif %}
+</div>
+{% endblock %}
