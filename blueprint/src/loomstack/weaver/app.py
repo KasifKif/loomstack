@@ -20,6 +20,7 @@ def create_app() -> FastAPI:
     from loomstack.weaver.routes.budget import router as budget_router
     from loomstack.weaver.routes.chat import router as chat_router
     from loomstack.weaver.routes.dashboard import router as dashboard_router
+    from loomstack.weaver.routes.git_projects import router as git_projects_router
     from loomstack.weaver.routes.health import router as health_router
     from loomstack.weaver.routes.projects import router as projects_router
     from loomstack.weaver.routes.providers import router as providers_router
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
 
     app.include_router(dashboard_router)
     app.include_router(tasks_router)
+    app.include_router(git_projects_router)
     app.include_router(chat_router)
     app.include_router(health_router)
     app.include_router(budget_router)
