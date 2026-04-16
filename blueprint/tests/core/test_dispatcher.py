@@ -13,6 +13,7 @@ from loomstack.agents.classifier import ClassificationResult
 from loomstack.core.dispatcher import (
     Dispatcher,
     DispatchResult,
+    _resolve_tier,
     _write_ledger_entry,
     _write_run_result,
 )
@@ -349,3 +350,106 @@ class TestDispatchResult:
         assert r.task_id == "LS-001"
         assert r.tier == "code_worker"
         assert r.timestamp  # non-empty
+
+
+# ---------------------------------------------------------------------------
+# Escalation — _resolve_tier
+# ---------------------------------------------------------------------------
+
+
+class TestResolveTier:
+    def test_no_retries_uses_classified(self) -> None:
+        assert _resolve_tier("code_worker", 0, []) == "code_worker"
+
+    def test_below_threshold_stays_at_tier(self) -> None:
+        assert _resolve_tier("code_worker", 2, []) == "code_worker"
+
+    def test_at_threshold_escalates(self) -> None:
+        assert _resolve_tier("code_worker", 3, []) == "reviewer"
+
+    def test_reviewer_escalates_to_architect(self) -> None:
+        assert _resolve_tier("reviewer", 3, []) == "architect"
+
+    def test_architect_stays_at_architect(self) -> None:
+        assert _resolve_tier("architect", 5, []) == "architect"
+
+    def test_security_tag_always_architect(self) -> None:
+        assert _resolve_tier("code_worker", 0, ["security"]) == "architect"
+
+    def test_breaking_change_tag_always_architect(self) -> None:
+        assert _resolve_tier("code_worker", 0, ["breaking_change"]) == "architect"
+
+    def test_unknown_tier_no_crash(self) -> None:
+        assert _resolve_tier("custom_tier", 5, []) == "custom_tier"
+
+
+# ---------------------------------------------------------------------------
+# Escalation — dispatch integration
+# ---------------------------------------------------------------------------
+
+
+class TestEscalationDispatch:
+    @pytest.mark.asyncio
+    async def test_failed_task_retried(self, tmp_path: Path) -> None:
+        """FAILED tasks are picked up for retry."""
+        agent = make_agent()
+        dispatcher = make_dispatcher(tmp_path, agents={"code_worker": agent})
+        plan = make_plan()
+
+        with (
+            patch(
+                "loomstack.core.dispatcher.parse_plan_file", new_callable=AsyncMock
+            ) as mock_parse,
+            patch("loomstack.core.dispatcher.derive_status", new_callable=AsyncMock) as mock_status,
+        ):
+            mock_parse.return_value = plan
+            mock_status.return_value = TaskStatus.FAILED
+            results = await dispatcher.run_once()
+
+        assert len(results) == 1
+        agent.execute.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_escalation_changes_tier(self, tmp_path: Path) -> None:
+        """After 3+ retries, task escalates from code_worker to reviewer."""
+        reviewer_agent = make_agent(role="reviewer")
+        code_agent = make_agent(role="code_worker")
+        classifier = make_classifier(tier="code_worker")
+        dispatcher = make_dispatcher(
+            tmp_path,
+            agents={"code_worker": code_agent, "reviewer": reviewer_agent},
+            classifier=classifier,
+        )
+        plan = make_plan()
+
+        # Simulate a run file with retry_count=3
+        from loomstack.core.state import RunMeta
+
+        with (
+            patch(
+                "loomstack.core.dispatcher.parse_plan_file", new_callable=AsyncMock
+            ) as mock_parse,
+            patch("loomstack.core.dispatcher.derive_status", new_callable=AsyncMock) as mock_status,
+            patch(
+                "loomstack.core.dispatcher.read_run_meta",
+                return_value=RunMeta(retry_count=3, status=TaskStatus.FAILED),
+            ),
+        ):
+            mock_parse.return_value = plan
+            mock_status.return_value = TaskStatus.FAILED
+            results = await dispatcher.run_once()
+
+        assert len(results) == 1
+        assert results[0].tier == "reviewer"
+        reviewer_agent.execute.assert_called_once()
+        code_agent.execute.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_retry_count_written_on_failure(self, tmp_path: Path) -> None:
+        """Failed result footer includes incremented retry_count."""
+        run_path = tmp_path / "runs" / "LS-001.md"
+        result = Failed(error="compile error")
+        await _write_run_result(run_path, "LS-001", "code_worker", result, retry_count=1)
+
+        content = run_path.read_text()
+        assert "retry_count: 2" in content

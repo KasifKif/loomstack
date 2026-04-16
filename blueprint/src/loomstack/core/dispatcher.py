@@ -31,6 +31,47 @@ if TYPE_CHECKING:
 
 log = structlog.get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# Escalation ladder
+# ---------------------------------------------------------------------------
+
+# Tier promotion order. When retries exhaust, move to the next tier.
+_TIER_LADDER: list[str] = ["code_worker", "reviewer", "architect"]
+
+# Retry threshold before escalating to the next tier.
+_ESCALATION_RETRY_THRESHOLD = 3
+
+# Tags that always escalate directly to architect, regardless of retry count.
+_ALWAYS_ARCHITECT_TAGS = frozenset({"security", "breaking_change"})
+
+
+def _resolve_tier(
+    classified_tier: str,
+    retry_count: int,
+    task_tags: list[str],
+) -> str:
+    """
+    Determine the effective tier for a task based on escalation rules.
+
+    - Tasks tagged security/breaking_change → always architect.
+    - retry_count < threshold → use classified tier.
+    - retry_count >= threshold → promote to next tier in the ladder.
+    """
+    if _ALWAYS_ARCHITECT_TAGS & set(task_tags):
+        return "architect"
+
+    if retry_count < _ESCALATION_RETRY_THRESHOLD:
+        return classified_tier
+
+    # Find position in ladder and promote
+    try:
+        idx = _TIER_LADDER.index(classified_tier)
+    except ValueError:
+        return classified_tier
+
+    next_idx = min(idx + 1, len(_TIER_LADDER) - 1)
+    return _TIER_LADDER[next_idx]
+
 
 # ---------------------------------------------------------------------------
 # Dispatch result
@@ -57,6 +98,8 @@ async def _write_run_result(
     task_id: str,
     tier: str,
     result: AgentResult,
+    *,
+    retry_count: int = 0,
 ) -> None:
     """Append a result footer to the run file."""
     run_log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,7 +112,7 @@ async def _write_run_result(
         extra = f"reason: {result.reason}\n"
     else:
         status = "failed"
-        extra = f"error: {result.error[:200]}\n"
+        extra = f"error: {result.error[:200]}\nretry_count: {retry_count + 1}\n"
 
     footer = (
         f"\n---\nstatus: {status}\ntier: {tier}\n"
@@ -164,12 +207,16 @@ class Dispatcher:
         done_ids = {tid for tid, s in statuses.items() if s == TaskStatus.DONE}
         ready = plan.ready_tasks(done_ids)
 
-        # Filter to PENDING only
-        pending = [t for t in ready if statuses.get(t.task_id) == TaskStatus.PENDING]
+        # Filter to PENDING or FAILED (retryable) tasks
+        dispatchable = [
+            t for t in ready if statuses.get(t.task_id) in (TaskStatus.PENDING, TaskStatus.FAILED)
+        ]
 
-        if not pending:
+        if not dispatchable:
             log.info("dispatcher.no_pending_tasks", total=len(plan.tasks), done=len(done_ids))
             return []
+
+        pending = dispatchable
 
         results: list[DispatchResult] = []
 
@@ -181,9 +228,21 @@ class Dispatcher:
         return results
 
     async def _dispatch_one(self, task: Task) -> DispatchResult | None:
-        """Classify, budget-check, and execute a single task."""
+        """Classify, budget-check, escalate if needed, and execute a single task."""
         classification = await self.classifier.classify(task)
-        tier = classification.tier
+
+        # Read run metadata for retry/escalation decisions
+        run_meta = read_run_meta(self._run_log_path(task.task_id))
+        tier = _resolve_tier(classification.tier, run_meta.retry_count, task.tags)
+
+        if tier != classification.tier:
+            log.info(
+                "dispatcher.escalated",
+                task_id=task.task_id,
+                from_tier=classification.tier,
+                to_tier=tier,
+                retry_count=run_meta.retry_count,
+            )
 
         # Architect tasks require approval
         if tier == "architect" and not is_approved(task.task_id, self.loomstack_dir):
@@ -231,8 +290,7 @@ class Dispatcher:
             )
             return None
 
-        # Build context
-        run_meta = read_run_meta(self._run_log_path(task.task_id))
+        # Build context with escalation-aware retry expansion
         from loomstack.agents.base import TaskContext
 
         ctx = TaskContext(
@@ -241,8 +299,8 @@ class Dispatcher:
             claude_md_path=self.repo_path / "CLAUDE.md",
             run_log_path=self._run_log_path(task.task_id),
             retry_count=run_meta.retry_count,
-            prior_error=run_meta.last_error,
-            prior_diff=run_meta.last_diff,
+            prior_error=run_meta.last_error if run_meta.retry_count >= 1 else None,
+            prior_diff=run_meta.last_diff if run_meta.retry_count >= 2 else None,
         )
 
         log.info(
@@ -260,8 +318,14 @@ class Dispatcher:
         if cost > 0:
             await self.budget.charge(tier, cost, task.task_id)
 
-        # Write result
-        await _write_run_result(self._run_log_path(task.task_id), task.task_id, tier, result)
+        # Write result (include retry_count so next cycle can read it back)
+        await _write_run_result(
+            self._run_log_path(task.task_id),
+            task.task_id,
+            tier,
+            result,
+            retry_count=run_meta.retry_count,
+        )
         await _write_ledger_entry(self._ledger_path, task.task_id, tier, result)
 
         log.info(
