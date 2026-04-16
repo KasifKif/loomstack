@@ -21,11 +21,18 @@ class WeaverSettings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8400
 
+    data_dir: str = "~/.loomstack/weaver"
+
     # Discord bot relay (optional — only needed when running discord_bot)
     discord_bot_token: str = ""
     discord_guild_id: str = ""
     discord_user_ids: str = ""  # comma-separated allowlisted user IDs
     discord_channel_ids: str = ""  # comma-separated watched channel IDs
+
+
+def get_data_dir(settings: WeaverSettings) -> Path:
+    """Return the resolved data directory path."""
+    return Path(settings.data_dir).expanduser()
 
 
 def parse_project_dirs(settings: WeaverSettings) -> dict[str, str]:

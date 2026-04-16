@@ -1,0 +1,14 @@
+<tr>
+  <td>{{ worker.name }}</td>
+  <td>{{ worker.agent_tier }}</td>
+  <td>{% if provider %}{{ provider.name }}{% else %}{{ worker.provider_id }}{% endif %}</td>
+  <td class="mono">{{ worker.model_name }}</td>
+  <td class="num">{{ worker.timeout_seconds }}s</td>
+  <td>
+    <button class="btn-danger"
+            hx-delete="/api/workers/{{ worker.id }}"
+            hx-target="closest tr"
+            hx-swap="outerHTML"
+            hx-confirm="Delete worker '{{ worker.name }}'?">Delete</button>
+  </td>
+</tr>

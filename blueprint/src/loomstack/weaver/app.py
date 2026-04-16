@@ -22,7 +22,9 @@ def create_app() -> FastAPI:
     from loomstack.weaver.routes.dashboard import router as dashboard_router
     from loomstack.weaver.routes.health import router as health_router
     from loomstack.weaver.routes.projects import router as projects_router
+    from loomstack.weaver.routes.providers import router as providers_router
     from loomstack.weaver.routes.tasks import router as tasks_router
+    from loomstack.weaver.routes.workers import router as workers_router
 
     app.include_router(dashboard_router)
     app.include_router(tasks_router)
@@ -31,6 +33,8 @@ def create_app() -> FastAPI:
     app.include_router(budget_router)
     app.include_router(projects_router)
     app.include_router(approvals_router)
+    app.include_router(providers_router)
+    app.include_router(workers_router)
 
     app.state.templates = Jinja2Templates(directory=str(templates_dir))
     app.state.templates.env.autoescape = True

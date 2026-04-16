@@ -139,6 +139,8 @@ loomstack weaver                  # start on default port (8400)
 | Budget | `/budget` | Daily spend, history chart, recent ledger entries |
 | Health | `/health` | Endpoint health checks |
 | Chat | `/chat` | LLM chat interface for ad-hoc queries |
+| Providers | `/providers` | CRUD for API provider configs (endpoint, key, cost, rate limits) |
+| Workers | `/workers` | CRUD for worker tier configs (tier, provider, model, timeout) |
 
 **Key features:**
 - **Live task table** — auto-refreshes every 10s via HTMX; click any row for full detail panel
@@ -146,9 +148,10 @@ loomstack weaver                  # start on default port (8400)
 - **Inline approvals** — approve gated tasks directly from the table; button swaps to badge without page reload
 - **Run logs** — rendered markdown view of `.loomstack/runs/<task-id>.md` per task
 - **Multi-project mode** — configure multiple project dirs; sidebar selector switches between them
+- **Provider & worker management** — configure API endpoints and per-tier model assignments from the UI; persisted to `~/.loomstack/weaver/`
 - **JSON API** — every page has a corresponding `/api/` endpoint returning JSON for scripting
 
-Weaver is read-only except for the approval endpoint. It never modifies `PLAN.md`, runs tasks, or pushes code.
+Weaver is read-only except for the approval and provider/worker CRUD endpoints. It never modifies `PLAN.md`, runs tasks, or pushes code.
 
 ## Bootstrap Flow
 
