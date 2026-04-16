@@ -29,6 +29,7 @@ def create_app() -> FastAPI:
 
     app.include_router(dashboard_router)
     app.include_router(tasks_router)
+    app.include_router(git_projects_router)
     app.include_router(chat_router)
     app.include_router(health_router)
     app.include_router(budget_router)
