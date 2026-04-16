@@ -1,0 +1,13 @@
+<tr id="project-{{ project.id }}" {% if project.is_active %}class="active-project"{% endif %}>
+  <td>{{ project.name }}</td>
+  <td class="mono">{{ project.git_url }}</td>
+  <td>{% if project.has_plan %}✓{% else %}—{% endif %}</td>
+  <td>{% if project.is_active %}<span class="badge status-done">Active</span>{% else %}<span class="badge status-pending">Inactive</span>{% endif %}</td>
+  <td>
+    {% if not project.is_active %}
+    <button class="btn" hx-post="/api/git-projects/{{ project.id }}/activate" hx-target="closest tr" hx-swap="outerHTML">Activate</button>
+    {% endif %}
+    <button class="btn" hx-post="/api/git-projects/{{ project.id }}/pull" hx-target="closest tr" hx-swap="outerHTML">Pull</button>
+    <button class="btn btn-danger" hx-delete="/api/git-projects/{{ project.id }}" hx-target="closest tr" hx-swap="outerHTML" hx-confirm="Remove this project from the registry?">Remove</button>
+  </td>
+</tr>

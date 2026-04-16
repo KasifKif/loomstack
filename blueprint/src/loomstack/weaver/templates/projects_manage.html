@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Git Projects — Weaver{% endblock %}
+
+{% block content %}
+<div class="projects-container">
+  <div class="page-header">
+    <h1>Git Projects</h1>
+  </div>
+
+  <div class="clone-section">
+    <form hx-post="/api/git-projects" 
+          hx-target="#projects-table-body" 
+          hx-swap="beforeend"
+          hx-indicator="#clone-spinner"
+          hx-on::after-request="if(event.detail.successful) { this.reset(); const empty = document.querySelector('.empty-state'); if(empty) empty.remove(); }"
+          class="clone-form">
+      <div class="form-group">
+        <label for="git_url">Clone Repository</label>
+        <div class="input-group">
+          <input type="text" 
+                 id="git_url" 
+                 name="git_url" 
+                 placeholder="https://github.com/user/repo.git" 
+                 required 
+                 class="form-input">
+          <button type="submit">Clone</button>
+          <span id="clone-spinner" class="clone-spinner">
+            <span class="spinner"></span>
+          </span>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="projects-list">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Git URL</th>
+          <th>PLAN.md</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="projects-table-body">
+        {% if git_projects %}
+          {% for project in git_projects %}
+            {% include "project_row_partial.html" %}
+          {% endfor %}
+        {% else %}
+          <tr class="empty-state">
+            <td colspan="5" class="empty-msg">No projects cloned yet. Add a git URL above to get started.</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<style>
+  .projects-container {
+    padding: 1rem 1.5rem;
+    overflow-y: auto;
+    height: 100%;
+  }
+
+  .clone-section {
+    background: var(--surface);
+    padding: 1rem;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+  }
+
+  .clone-form {
+    max-width: 600px;
+  }
+
+  .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .form-group label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .input-group {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .form-input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .form-input:focus {
+    border-color: var(--accent);
+  }
+
+  .btn {
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: opacity 0.15s;
+  }
+
+  .btn-danger {
+    background: #5c1a1a;
+    color: #ffaaaa;
+    border: 1px solid #7a2020;
+  }
+
+  .btn-danger:hover {
+    background: #7a2020;
+  }
+
+  .active-project {
+    border-left: 3px solid var(--accent);
+    background: rgba(74, 158, 255, 0.06);
+  }
+
+  .badge {
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .status-done { background: #0d2b1a; color: #3ddc84; }
+  .status-pending { background: #2a2a2a; color: #aaa; }
+
+  .clone-spinner {
+    display: none;
+    margin-left: 0.5rem;
+  }
+
+  .htmx-request .clone-spinner {
+    display: inline-block;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,.3);
+    border-radius: 50%;
+    border-top-color: var(--accent);
+    animation: spin 1s linear infinite;
+    display: inline-block;
+  }
+
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+</style>
+{% endblock %}
