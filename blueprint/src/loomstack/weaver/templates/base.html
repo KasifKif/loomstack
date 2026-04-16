@@ -15,17 +15,18 @@
       <li><a href="/chat"   {% if active == "chat"      %}class="active"{% endif %}>Chat</a></li>
       <li><a href="/tasks"  {% if active == "tasks"     %}class="active"{% endif %}>Tasks</a></li>
       <li><a href="/budget" {% if active == "budget"    %}class="active"{% endif %}>Budget</a></li>
-      <li><a href="/health" {% if active == "health"    %}class="active"{% endif %}>Health</a></li>
+      <li><a href="/health"     {% if active == "health"    %}class="active"{% endif %}>Health</a></li>
+      <li><a href="/providers" {% if active == "providers" %}class="active"{% endif %}>Providers</a></li>
+      <li><a href="/workers"   {% if active == "workers"   %}class="active"{% endif %}>Workers</a></li>
     </ul>
-    {% set projects = weaver_projects() %}
-    {% if projects|length > 1 %}
     <div class="nav-section-label">Projects</div>
     <ul>
+      {% set projects = weaver_projects() %}
+      <li><a href="/projects" {% if active == "projects"  %}class="active"{% endif %}>Projects</a></li>
       {% for p in projects %}
       <li><a href="/projects/{{ p }}" {% if active_project == p %}class="active"{% endif %}>{{ p }}</a></li>
       {% endfor %}
     </ul>
-    {% endif %}
   </nav>
   <main>
     {% block content %}{% endblock %}
