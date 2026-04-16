@@ -22,27 +22,9 @@ logger = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["workers"])
 
-AgentTier = Literal[
-    "classifier",
-    "mac_worker",
-    "code_worker",
-    "content_worker",
-    "reviewer",
-    "architect",
-    "researcher",
-    "test_runner",
-]
+AgentTier = Literal["classifier", "code_worker", "reviewer", "architect"]
 
-AGENT_TIERS: list[str] = [
-    "classifier",
-    "mac_worker",
-    "code_worker",
-    "content_worker",
-    "reviewer",
-    "architect",
-    "researcher",
-    "test_runner",
-]
+AGENT_TIERS: list[str] = ["classifier", "code_worker", "reviewer", "architect"]
 
 
 class Worker(BaseModel):
@@ -102,13 +84,25 @@ async def list_workers(
     return JSONResponse([w.model_dump() for w in items.values()])
 
 
+async def _parse_worker_form(request: Request) -> dict[str, object]:
+    """Parse worker fields from form data, coercing numeric types."""
+    form = await request.form()
+    return {
+        "name": str(form.get("name", "")),
+        "agent_tier": str(form.get("agent_tier", "")),
+        "provider_id": str(form.get("provider_id", "")),
+        "model_name": str(form.get("model_name", "")),
+        "timeout_seconds": int(form.get("timeout_seconds", 300)),
+    }
+
+
 @router.post("/api/workers")
 async def create_worker(
     request: Request,
     settings: Annotated[WeaverSettings, Depends(get_settings)],
 ) -> Response:
-    body = await request.json()
-    worker_id = _slugify(body.get("name", ""))
+    body = await _parse_worker_form(request)
+    worker_id = _slugify(str(body.get("name", "")))
     worker_store = _make_worker_store(settings)
     existing = await worker_store.get(worker_id)
     if existing is not None:
@@ -152,10 +146,10 @@ async def update_worker(
     existing = await worker_store.get(worker_id)
     if existing is None:
         raise HTTPException(status_code=404, detail=f"Worker '{worker_id}' not found")
-    body = await request.json()
+    body = await _parse_worker_form(request)
 
     # Cross-validate provider_id if changed
-    provider_id = body.get("provider_id", existing.provider_id)
+    provider_id = str(body.get("provider_id", existing.provider_id))
     provider_store = _make_provider_store(settings)
     if not await provider_store.get(provider_id):
         raise HTTPException(status_code=422, detail=f"Provider '{provider_id}' not found")

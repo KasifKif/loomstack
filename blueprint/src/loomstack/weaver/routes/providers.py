@@ -83,13 +83,28 @@ async def list_providers(
     return JSONResponse(masked)
 
 
+async def _parse_provider_form(request: Request) -> dict[str, object]:
+    """Parse provider fields from form data, coercing numeric types."""
+    form = await request.form()
+    return {
+        "name": str(form.get("name", "")),
+        "provider_type": str(form.get("provider_type", "")),
+        "base_url": str(form.get("base_url", "")),
+        "api_key": str(form.get("api_key", "")),
+        "cost_per_input_token": float(form.get("cost_per_input_token", 0)),
+        "cost_per_output_token": float(form.get("cost_per_output_token", 0)),
+        "rate_limit_rpm": int(form.get("rate_limit_rpm", -1)),
+        "token_limit": int(form.get("token_limit", -1)),
+    }
+
+
 @router.post("/api/providers")
 async def create_provider(
     request: Request,
     settings: Annotated[WeaverSettings, Depends(get_settings)],
 ) -> Response:
-    body = await request.json()
-    provider_id = _slugify(body.get("name", ""))
+    body = await _parse_provider_form(request)
+    provider_id = _slugify(str(body.get("name", "")))
     store = _make_store(settings)
     existing = await store.get(provider_id)
     if existing is not None:
@@ -125,7 +140,7 @@ async def update_provider(
     existing = await store.get(provider_id)
     if existing is None:
         raise HTTPException(status_code=404, detail=f"Provider '{provider_id}' not found")
-    body = await request.json()
+    body = await _parse_provider_form(request)
     try:
         updated = existing.model_copy(update={k: v for k, v in body.items() if k != "id"})
     except Exception as exc:
