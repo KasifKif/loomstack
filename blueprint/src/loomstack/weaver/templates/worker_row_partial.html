@@ -9,6 +9,6 @@
             hx-delete="/api/workers/{{ worker.id }}"
             hx-target="closest tr"
             hx-swap="outerHTML"
-            hx-confirm="Delete worker '{{ worker.name }}'?">Delete</button>
+            hx-confirm="Delete worker '{{ worker.name | e }}'?">Delete</button>
   </td>
 </tr>

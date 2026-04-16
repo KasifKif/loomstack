@@ -125,9 +125,7 @@ class Task(BaseModel):
     @classmethod
     def task_id_format(cls, v: str) -> str:
         if not TASK_ID_RE.match(v):
-            raise ValueError(
-                f"task_id {v!r} must match <PREFIX>-<NUMBER> (e.g. MC-001)"
-            )
+            raise ValueError(f"task_id {v!r} must match <PREFIX>-<NUMBER> (e.g. MC-001)")
         return v
 
     @field_validator("depends_on", mode="before")
@@ -144,9 +142,7 @@ class Task(BaseModel):
     def depends_on_format(cls, v: list[str]) -> list[str]:
         for dep in v:
             if not TASK_ID_RE.match(dep):
-                raise ValueError(
-                    f"depends_on entry {dep!r} must match <PREFIX>-<NUMBER>"
-                )
+                raise ValueError(f"depends_on entry {dep!r} must match <PREFIX>-<NUMBER>")
         return v
 
     @field_validator("escalate_if", mode="before")
@@ -214,9 +210,7 @@ class Plan(BaseModel):
         for task in self.tasks:
             for dep in task.depends_on:
                 if dep not in ids:
-                    raise ValueError(
-                        f"task {task.task_id} depends_on {dep!r} which does not exist"
-                    )
+                    raise ValueError(f"task {task.task_id} depends_on {dep!r} which does not exist")
         return self
 
     @model_validator(mode="after")
@@ -232,9 +226,7 @@ class Plan(BaseModel):
                 if neighbour not in visited:
                     dfs(neighbour)
                 elif neighbour in in_stack:
-                    raise ValueError(
-                        f"dependency cycle detected involving task {neighbour}"
-                    )
+                    raise ValueError(f"dependency cycle detected involving task {neighbour}")
             in_stack.discard(node)
 
         for task_id in graph:
@@ -254,8 +246,7 @@ class Plan(BaseModel):
         return [
             t
             for t in self.tasks
-            if t.task_id not in done_ids
-            and all(dep in done_ids for dep in t.depends_on)
+            if t.task_id not in done_ids and all(dep in done_ids for dep in t.depends_on)
         ]
 
 
@@ -315,9 +306,7 @@ def _parse_task_block(task_id: str, description: str, yaml_body: str) -> Task:
         _raw = next(yaml.safe_load_all(yaml_body), None)
         data: dict[str, Any] = _raw if isinstance(_raw, dict) else {}
     except yaml.YAMLError as exc:
-        raise PlanParseError(
-            f"task {task_id}: invalid YAML block — {exc}"
-        ) from exc
+        raise PlanParseError(f"task {task_id}: invalid YAML block — {exc}") from exc
 
     if not isinstance(data, dict):
         raise PlanParseError(
