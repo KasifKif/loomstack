@@ -92,6 +92,11 @@ class JsonStore(Generic[T]):
         await self._write_raw(raw)
         return item
 
+    async def save_all(self, items: dict[str, T]) -> None:
+        """Atomically replace the entire store contents."""
+        raw = {item_id: item.model_dump() for item_id, item in items.items()}
+        await self._write_raw(raw)
+
     async def delete(self, item_id: str) -> bool:
         """Remove an item.  Returns True if it existed, False otherwise."""
         raw = await self._read_raw()

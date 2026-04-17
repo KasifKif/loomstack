@@ -28,8 +28,8 @@ if TYPE_CHECKING:
 class TaskStatus(StrEnum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
-    PROPOSED = "proposed"       # PR open, awaiting review/CI
-    BLOCKED = "blocked"         # waiting for approval gate
+    PROPOSED = "proposed"  # PR open, awaiting review/CI
+    BLOCKED = "blocked"  # waiting for approval gate
     DONE = "done"
     FAILED = "failed"
 
@@ -136,9 +136,7 @@ async def read_run_meta_async(run_file: Path) -> RunMeta:
     if not run_file.exists():
         return RunMeta()
     try:
-        content = await asyncio.get_event_loop().run_in_executor(
-            None, run_file.read_text, "utf-8"
-        )
+        content = await asyncio.to_thread(run_file.read_text, "utf-8")
     except OSError:
         return RunMeta()
     return _parse_run_meta(content)
@@ -158,15 +156,15 @@ class GhError(Exception):
 async def _run_gh(*args: str) -> str:
     """Run a gh command and return stdout. Raises GhError on failure."""
     proc = await asyncio.create_subprocess_exec(
-        "gh", *args,
+        "gh",
+        *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         raise GhError(
-            f"gh {' '.join(args)} failed (exit {proc.returncode}): "
-            f"{stderr.decode().strip()}"
+            f"gh {' '.join(args)} failed (exit {proc.returncode}): {stderr.decode().strip()}"
         )
     return stdout.decode().strip()
 
@@ -178,11 +176,16 @@ async def get_open_pr_for_branch(branch: str) -> str | None:
     """
     try:
         output = await _run_gh(
-            "pr", "list",
-            "--head", branch,
-            "--state", "open",
-            "--json", "url",
-            "--jq", ".[0].url",
+            "pr",
+            "list",
+            "--head",
+            branch,
+            "--state",
+            "open",
+            "--json",
+            "url",
+            "--jq",
+            ".[0].url",
         )
     except GhError:
         return None
@@ -277,7 +280,7 @@ async def derive_all_statuses(
     results = await asyncio.gather(
         *[derive_status(tid, repo_path, loomstack_dir) for tid in task_ids]
     )
-    return dict(zip(task_ids, results, strict=False))
+    return dict(zip(task_ids, results, strict=True))
 
 
 # ---------------------------------------------------------------------------

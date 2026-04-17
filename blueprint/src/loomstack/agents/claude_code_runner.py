@@ -214,7 +214,8 @@ async def run_claude_code(
 
     cmd = [
         "claude",
-        "--context", str(claude_md_path),
+        "--context",
+        str(claude_md_path),
         "--print",
         "--dangerously-skip-permissions",
         task.notes or task.description,
@@ -222,9 +223,7 @@ async def run_claude_code(
 
     try:
         async with aiofiles.open(run_log_path, "w", encoding="utf-8") as log_fh:
-            await log_fh.write(
-                _write_run_log_frontmatter(task.task_id, model, endpoint)
-            )
+            await log_fh.write(_write_run_log_frontmatter(task.task_id, model, endpoint))
             await log_fh.flush()
 
             proc = await asyncio.create_subprocess_exec(
@@ -235,7 +234,8 @@ async def run_claude_code(
                 stderr=asyncio.subprocess.STDOUT,
             )
 
-            assert proc.stdout is not None
+            if proc.stdout is None:
+                raise OSError("subprocess stdout is None — cannot stream output")
 
             try:
                 await asyncio.wait_for(
@@ -247,9 +247,7 @@ async def run_claude_code(
             except TimeoutError:
                 proc.kill()
                 await proc.wait()
-                await log_fh.write(
-                    f"\n[loomstack] TIMEOUT after {timeout_s}s — process killed\n"
-                )
+                await log_fh.write(f"\n[loomstack] TIMEOUT after {timeout_s}s — process killed\n")
                 result = ClaudeCodeResult(
                     success=False,
                     exit_code=-1,
@@ -277,8 +275,12 @@ async def run_claude_code(
 
             error_summary = ""
             if not success:
-                error_lines = [line for line in ring if any(p.search(line) for p in _FAILURE_PATTERNS)]
-                error_summary = "\n".join(error_lines[-5:]) if error_lines else ring[-1] if ring else ""
+                error_lines = [
+                    line for line in ring if any(p.search(line) for p in _FAILURE_PATTERNS)
+                ]
+                error_summary = (
+                    "\n".join(error_lines[-5:]) if error_lines else ring[-1] if ring else ""
+                )
 
             result = ClaudeCodeResult(
                 success=success,
@@ -311,8 +313,12 @@ async def run_claude_code(
         try:
             async with aiofiles.open(run_log_path, "a", encoding="utf-8") as log_fh:
                 await log_fh.write(_write_run_log_footer(result))
-        except OSError:
-            pass
+        except OSError as log_exc:
+            log.warning(
+                "claude_code_runner.log_write_failed",
+                task_id=task.task_id,
+                error=str(log_exc),
+            )
         return result
 
     log.info(

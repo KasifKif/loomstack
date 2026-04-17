@@ -21,9 +21,9 @@
     </ul>
     <div class="nav-section-label">Projects</div>
     <ul>
-      {% set projects = weaver_projects() %}
+      {% set nav_projects = weaver_projects() %}
       <li><a href="/projects" {% if active == "projects"  %}class="active"{% endif %}>Projects</a></li>
-      {% for p in projects %}
+      {% for p in nav_projects %}
       <li><a href="/projects/{{ p }}" {% if active_project == p %}class="active"{% endif %}>{{ p }}</a></li>
       {% endfor %}
     </ul>

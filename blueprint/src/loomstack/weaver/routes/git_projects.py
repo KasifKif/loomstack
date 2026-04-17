@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import re
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Any, cast
@@ -43,6 +44,20 @@ def get_project_store(
     return JsonStore(data_dir, "projects.json", Project)
 
 
+_GIT_URL_RE = re.compile(
+    r"^(https?://|git://|ssh://|git@)[^\s]+$",
+)
+
+
+def _validate_git_url(url: str) -> None:
+    """Reject URLs that don't look like valid git remotes."""
+    if not _GIT_URL_RE.match(url):
+        raise HTTPException(
+            status_code=422,
+            detail="Invalid git URL — must start with https://, http://, git://, ssh://, or git@",
+        )
+
+
 def extract_repo_name(url: str) -> str:
     return url.split("/")[-1].removesuffix(".git")
 
@@ -67,6 +82,14 @@ async def projects_page(
 @router.post("/api/git-projects")
 async def clone_project(
     request: Request,
+    settings: Annotated[WeaverSettings, Depends(get_settings)],
+    store: Annotated[JsonStore[Project], Depends(get_project_store)],
+) -> Any:
+    form = await request.form()
+    url = str(form.get("git_url", "")).strip()
+    if not url:
+        raise HTTPException(status_code=422, detail="Git URL is required")
+    _validate_git_url(url)
     body: ProjectCreate,
     settings: Annotated[WeaverSettings, Depends(get_settings)],
     store: Annotated[JsonStore[Project], Depends(get_project_store)],

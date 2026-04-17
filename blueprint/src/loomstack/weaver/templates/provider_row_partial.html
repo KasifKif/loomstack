@@ -10,6 +10,6 @@
             hx-delete="/api/providers/{{ provider.id }}"
             hx-target="closest tr"
             hx-swap="outerHTML"
-            hx-confirm="Delete provider '{{ provider.name }}'?">Delete</button>
+            hx-confirm="Delete provider '{{ provider.name | e }}'?">Delete</button>
   </td>
 </tr>

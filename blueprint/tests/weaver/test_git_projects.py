@@ -50,7 +50,7 @@ async def test_clone_project(client, test_data_dir):
 
         mock_exec.side_effect = side_effect
         
-        response = client.post("/api/git-projects", json={"git_url": git_url})
+        response = client.post("/api/git-projects", data={"git_url": git_url})
         
         assert response.status_code == 200
         data = response.json()

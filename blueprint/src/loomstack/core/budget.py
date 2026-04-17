@@ -117,7 +117,7 @@ def _read_ledger_sync(path: Path, day: date) -> tuple[dict[str, float], float]:
     if not path.exists():
         return tier_spent, global_spent
 
-    with path.open(encoding="utf-8") as fh:
+    with portalocker.Lock(str(path), mode="r", encoding="utf-8", timeout=10) as fh:
         for raw in fh:
             raw = raw.strip()
             if not raw:
@@ -174,9 +174,7 @@ class Budget:
     # Public API
     # ------------------------------------------------------------------
 
-    async def check(
-        self, tier: str, estimated_usd: float, task_id: str
-    ) -> BudgetExceeded | None:
+    async def check(self, tier: str, estimated_usd: float, task_id: str) -> BudgetExceeded | None:
         """
         Return ``None`` if the call is within budget, or a ``BudgetExceeded``
         value if it would breach either the tier cap or the global daily cap.
