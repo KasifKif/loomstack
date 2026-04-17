@@ -45,8 +45,11 @@ def parse_project_dirs(settings: WeaverSettings) -> dict[str, str]:
     """
     dirs: dict[str, str] = {}
     primary = settings.loomstack_project_dir
-    primary_name = Path(primary).name or "project"
-    dirs[primary_name] = primary
+    if primary != ".":
+        primary_path = Path(primary).resolve()
+        primary_name = primary_path.name
+        if primary_name:
+            dirs[primary_name] = str(primary_path)
     raw = settings.loomstack_project_dirs.strip()
     if raw:
         for entry in raw.split(","):
