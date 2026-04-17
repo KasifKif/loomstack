@@ -141,6 +141,7 @@ loomstack weaver                  # start on default port (8400)
 | Chat | `/chat` | LLM chat interface for ad-hoc queries |
 | Providers | `/providers` | CRUD for API provider configs (endpoint, key, cost, rate limits) |
 | Workers | `/workers` | CRUD for worker tier configs (tier, provider, model, timeout) |
+| Dispatcher | `/dispatcher` | Start/stop the dispatch loop; live status, cycle times, dispatch counts |
 
 **Key features:**
 - **Live task table** — auto-refreshes every 10s via HTMX; click any row for full detail panel
@@ -151,7 +152,7 @@ loomstack weaver                  # start on default port (8400)
 - **Provider & worker management** — configure API endpoints and per-tier model assignments from the UI; persisted to `~/.loomstack/weaver/`
 - **JSON API** — every page has a corresponding `/api/` endpoint returning JSON for scripting
 
-Weaver is read-only except for the approval and provider/worker CRUD endpoints. It never modifies `PLAN.md`, runs tasks, or pushes code.
+Weaver is read-only for project state (it never modifies `PLAN.md` or pushes code). The dispatcher page can start/stop the dispatch loop, and the approval/provider/worker endpoints modify their respective stores.
 
 ## Bootstrap Flow
 
