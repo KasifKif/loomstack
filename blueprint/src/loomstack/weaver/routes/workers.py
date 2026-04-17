@@ -92,7 +92,7 @@ async def _parse_worker_form(request: Request) -> dict[str, object]:
         "agent_tier": str(form.get("agent_tier", "")),
         "provider_id": str(form.get("provider_id", "")),
         "model_name": str(form.get("model_name", "")),
-        "timeout_seconds": int(form.get("timeout_seconds", 300)),
+        "timeout_seconds": int(str(form.get("timeout_seconds", 300))),
     }
 
 
@@ -109,13 +109,13 @@ async def create_worker(
         raise HTTPException(status_code=409, detail=f"Worker '{worker_id}' already exists")
 
     # Cross-validate provider_id
-    provider_id = body.get("provider_id", "")
+    provider_id = str(body.get("provider_id", ""))
     provider_store = _make_provider_store(settings)
     if not await provider_store.get(provider_id):
         raise HTTPException(status_code=422, detail=f"Provider '{provider_id}' not found")
 
     try:
-        worker = Worker(id=worker_id, **{k: v for k, v in body.items() if k != "id"})
+        worker = Worker(id=worker_id, **{k: v for k, v in body.items() if k != "id"})  # type: ignore[arg-type]
     except Exception as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await worker_store.upsert(worker_id, worker)

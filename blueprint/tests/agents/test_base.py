@@ -57,7 +57,7 @@ class TestTaskContext:
 
     def test_frozen(self, tmp_path: Path) -> None:
         ctx = _make_ctx(tmp_path)
-        with pytest.raises(Exception):
+        with pytest.raises(AttributeError):
             ctx.retry_count = 1  # type: ignore[misc]
 
     def test_with_retry_context(self, tmp_path: Path) -> None:
@@ -94,7 +94,7 @@ class TestProposed:
 
     def test_frozen(self) -> None:
         r = Proposed(branch="b", pr_url="u")
-        with pytest.raises(Exception):
+        with pytest.raises(AttributeError):
             r.branch = "other"  # type: ignore[misc]
 
 
@@ -110,7 +110,7 @@ class TestBlocked:
 
     def test_frozen(self) -> None:
         r = Blocked(reason="x")
-        with pytest.raises(Exception):
+        with pytest.raises(AttributeError):
             r.reason = "y"  # type: ignore[misc]
 
 
@@ -133,7 +133,7 @@ class TestFailed:
 
     def test_frozen(self) -> None:
         r = Failed(error="x")
-        with pytest.raises(Exception):
+        with pytest.raises(AttributeError):
             r.error = "y"  # type: ignore[misc]
 
 

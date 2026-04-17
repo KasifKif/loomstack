@@ -46,7 +46,7 @@ _FAILURE_PATTERNS = [
     re.compile(r"(?i)\bfatal:\s"),
 ]
 _PR_URL_RE = re.compile(r"https://github\.com/\S+/pull/\d+")
-_BRANCH_RE = re.compile(r"(?i)branch[:\s]+([a-zA-Z0-9/_-]+)")
+_BRANCH_RE = re.compile(r"(?i)branch[:\s]+([a-zA-Z0-9/_.\-]+[a-zA-Z0-9/_\-])")
 
 # Token count patterns emitted by claude-code's summary line
 _TOKENS_RE = re.compile(r"tokens?[:\s]+(\d+)", re.IGNORECASE)

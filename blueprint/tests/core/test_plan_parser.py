@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from loomstack.core.plan_parser import (
     AcceptanceBlock,
@@ -27,15 +28,15 @@ class TestAcceptanceBlock:
         assert a.ci == "passes"
 
     def test_empty_raises(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises((ValidationError, ValueError)):
             AcceptanceBlock()
 
     def test_ci_invalid_value(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises((ValidationError, ValueError)):
             AcceptanceBlock(ci="fails")
 
     def test_diff_size_max_zero_raises(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises((ValidationError, ValueError)):
             AcceptanceBlock(diff_size_max=0)
 
     def test_all_fields(self) -> None:
@@ -79,15 +80,15 @@ class TestTask:
         assert t.timeout_s == 1800
 
     def test_bad_task_id_format(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises((ValidationError, ValueError)):
             self._make(task_id="mc-001")
 
     def test_bad_task_id_no_prefix(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises((ValidationError, ValueError)):
             self._make(task_id="001")
 
     def test_invalid_role(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises((ValidationError, ValueError)):
             self._make(role="overlord")
 
     def test_depends_on_string_coerced(self) -> None:
@@ -95,7 +96,7 @@ class TestTask:
         assert t.depends_on == ["MC-002"]
 
     def test_depends_on_bad_format(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises((ValidationError, ValueError)):
             self._make(depends_on=["bad-id"])
 
     def test_escalate_if_valid_patterns(self) -> None:
@@ -113,15 +114,15 @@ class TestTask:
         assert len(t.escalate_if) == 7
 
     def test_escalate_if_invalid(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises((ValidationError, ValueError)):
             self._make(escalate_if=["unknown condition"])
 
     def test_max_retries_negative_raises(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises((ValidationError, ValueError)):
             self._make(max_retries=-1)
 
     def test_timeout_zero_raises(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises((ValidationError, ValueError)):
             self._make(timeout_s=0)
 
     def test_all_roles_accepted(self) -> None:
