@@ -100,20 +100,36 @@ def _parse_run_meta(content: str) -> RunMeta:
     if raw_status in _VALID_FRONTMATTER_STATUSES:
         status = TaskStatus(raw_status)
 
+    def _safe_int(key: str, default: int | None = None) -> int | None:
+        if key not in merged:
+            return default
+        try:
+            return int(merged[key])
+        except (ValueError, TypeError):
+            return default
+
+    def _safe_float(key: str, default: float | None = None) -> float | None:
+        if key not in merged:
+            return default
+        try:
+            return float(merged[key])
+        except (ValueError, TypeError):
+            return default
+
     return RunMeta(
         status=status,
         task_id=merged.get("task_id"),
         tier=merged.get("tier"),
-        retry_count=int(merged["retry_count"]) if "retry_count" in merged else 0,
+        retry_count=_safe_int("retry_count", 0) or 0,
         last_error=merged.get("last_error"),
         last_diff=merged.get("last_diff"),
         model=merged.get("model"),
         endpoint=merged.get("endpoint"),
-        exit_code=int(merged["exit_code"]) if "exit_code" in merged else None,
+        exit_code=_safe_int("exit_code"),
         pr_url=merged.get("pr_url") or None,
         branch=merged.get("branch") or None,
-        token_count=int(merged["token_count"]) if "token_count" in merged else None,
-        cost_usd=float(merged["cost_usd"]) if "cost_usd" in merged else None,
+        token_count=_safe_int("token_count"),
+        cost_usd=_safe_float("cost_usd"),
     )
 
 

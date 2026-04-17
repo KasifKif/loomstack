@@ -49,7 +49,7 @@ class JsonStore(Generic[T]):
         if not isinstance(data, dict):
             logger.warning("store_not_a_dict", path=str(self._path))
             return {}
-        return data  # type: ignore[return-value]
+        return data
 
     async def _write_raw(self, data: dict[str, dict]) -> None:  # type: ignore[type-arg]
         self._data_dir.mkdir(parents=True, exist_ok=True)

@@ -1,13 +1,13 @@
-import pytest
 import json
-import anyio
-from pathlib import Path
+from unittest.mock import AsyncMock, patch
+
+import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock
 
 from loomstack.weaver.app import create_app
 from loomstack.weaver.config import WeaverSettings, get_settings
 from loomstack.weaver.routes.git_projects import Project
+
 
 @pytest.fixture
 def test_data_dir(tmp_path):

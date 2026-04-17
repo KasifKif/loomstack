@@ -90,13 +90,6 @@ async def clone_project(
     if not url:
         raise HTTPException(status_code=422, detail="Git URL is required")
     _validate_git_url(url)
-    body: ProjectCreate,
-    settings: Annotated[WeaverSettings, Depends(get_settings)],
-    store: Annotated[JsonStore[Project], Depends(get_project_store)],
-) -> Any:
-    url = body.git_url.strip()
-    if not url:
-        raise HTTPException(status_code=422, detail="Git URL is required")
 
     repo_name = extract_repo_name(url)
     data_dir = get_data_dir(settings)

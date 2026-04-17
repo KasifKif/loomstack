@@ -91,10 +91,10 @@ async def _parse_provider_form(request: Request) -> dict[str, object]:
         "provider_type": str(form.get("provider_type", "")),
         "base_url": str(form.get("base_url", "")),
         "api_key": str(form.get("api_key", "")),
-        "cost_per_input_token": float(form.get("cost_per_input_token", 0)),
-        "cost_per_output_token": float(form.get("cost_per_output_token", 0)),
-        "rate_limit_rpm": int(form.get("rate_limit_rpm", -1)),
-        "token_limit": int(form.get("token_limit", -1)),
+        "cost_per_input_token": float(str(form.get("cost_per_input_token", 0))),
+        "cost_per_output_token": float(str(form.get("cost_per_output_token", 0))),
+        "rate_limit_rpm": int(str(form.get("rate_limit_rpm", -1))),
+        "token_limit": int(str(form.get("token_limit", -1))),
     }
 
 
@@ -110,7 +110,7 @@ async def create_provider(
     if existing is not None:
         raise HTTPException(status_code=409, detail=f"Provider '{provider_id}' already exists")
     try:
-        provider = Provider(id=provider_id, **{k: v for k, v in body.items() if k != "id"})
+        provider = Provider(id=provider_id, **{k: v for k, v in body.items() if k != "id"})  # type: ignore[arg-type]
     except Exception as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     await store.upsert(provider_id, provider)

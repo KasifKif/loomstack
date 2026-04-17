@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, date, datetime
-from pathlib import Path
+from pathlib import Path  # noqa: TC003
 from unittest.mock import patch
 
 import pytest
@@ -46,11 +46,11 @@ class TestBudgetConfig:
         assert c.global_daily_cap == float("inf")
 
     def test_negative_tier_cap_raises(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             BudgetConfig(tier_caps={"code_worker": -1.0})
 
     def test_negative_global_cap_raises(self) -> None:
-        with pytest.raises(Exception):
+        with pytest.raises(ValueError):
             BudgetConfig(global_daily_cap=-0.01)
 
     def test_from_yaml_section_basic(self) -> None:

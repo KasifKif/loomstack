@@ -178,7 +178,7 @@ def aiter_from_list(items: list[bytes]):  # type: ignore[return]
             try:
                 return next(self._items)
             except StopIteration:
-                raise StopAsyncIteration
+                raise StopAsyncIteration from None
 
     return _Iter()
 
