@@ -1,0 +1,72 @@
+<div id="dispatcher-status"
+     hx-get="/api/dispatcher/status"
+     hx-trigger="every 10s"
+     hx-swap="outerHTML">
+
+  <div class="status-card {% if status.is_running %}status-ok{% else %}status-err{% endif %}">
+    <span class="status-dot"></span>
+    <span class="status-label">
+      {% if status.is_running %}Running{% else %}Stopped{% endif %}
+    </span>
+    {% if status.error %}
+    <span class="status-error-msg">- {{ status.error }}</span>
+    {% endif %}
+  </div>
+
+  <div class="info-row">
+    <span class="info-label">Active project</span>
+    <span class="info-value mono">{{ active_project_name or "None" }}</span>
+  </div>
+
+  <div class="info-row">
+    <span class="info-label">Workers configured</span>
+    <span class="info-value">{{ worker_count }}</span>
+  </div>
+
+  {% if status.started_at %}
+  <div class="info-row">
+    <span class="info-label">Started at</span>
+    <span class="info-value mono">{{ status.started_at[:19] }}</span>
+  </div>
+  {% endif %}
+
+  {% if status.last_cycle_at %}
+  <div class="info-row">
+    <span class="info-label">Last cycle</span>
+    <span class="info-value mono">{{ status.last_cycle_at[:19] }}</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">Last dispatched</span>
+    <span class="info-value">{{ status.last_dispatched }} task(s)</span>
+  </div>
+  <div class="info-row">
+    <span class="info-label">Total dispatched</span>
+    <span class="info-value">{{ status.total_dispatched }}</span>
+  </div>
+  {% endif %}
+
+  <div style="margin-top: 1rem;">
+    {% if status.is_running %}
+    <button class="btn btn-danger"
+            hx-post="/api/dispatcher/stop"
+            hx-target="#dispatcher-status"
+            hx-swap="outerHTML">
+      Stop Dispatcher
+    </button>
+    {% else %}
+    <button class="btn btn-primary"
+            hx-post="/api/dispatcher/start"
+            hx-target="#dispatcher-status"
+            hx-swap="outerHTML"
+            {% if not active_project_name or worker_count == 0 %}disabled{% endif %}>
+      Start Dispatcher
+    </button>
+    {% if not active_project_name %}
+    <p class="help-text">Activate a project first.</p>
+    {% elif worker_count == 0 %}
+    <p class="help-text">Configure workers first.</p>
+    {% endif %}
+    {% endif %}
+  </div>
+
+</div>
