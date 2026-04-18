@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
+from loomstack.agents.aider_runner import AiderResult
 from loomstack.agents.base import Failed, Proposed, TaskContext
 from loomstack.agents.claude_code_runner import ClaudeCodeResult
 from loomstack.agents.code_worker import CodeWorker
@@ -44,12 +45,16 @@ def make_ctx(tmp_path: Path | None = None) -> TaskContext:
     )
 
 
-def make_worker(repo_path: Path | None = None) -> CodeWorker:
+def make_worker(
+    repo_path: Path | None = None,
+    runner: str = "claude_code",
+) -> CodeWorker:
     return CodeWorker(
         endpoint="http://localhost:8080/v1",
         model="qwen3-coder",
         repo_path=repo_path or Path("/tmp/test-repo"),
         claude_md_path=Path("/tmp/test-repo/CLAUDE.md"),
+        runner=runner,  # type: ignore[arg-type]
     )
 
 
@@ -68,6 +73,24 @@ def make_claude_result(
         error_summary=error_summary,
         token_count=1000,
         cost_usd=0.02,
+        run_log_path=Path("/tmp/run.md"),
+        tail=["line1", "line2"],
+    )
+
+
+def make_aider_result(
+    success: bool = True,
+    files_modified: list[str] | None = None,
+    error_summary: str = "",
+    exit_code: int = 0,
+) -> AiderResult:
+    return AiderResult(
+        success=success,
+        exit_code=exit_code,
+        files_modified=files_modified or ["src/x.py"],
+        error_summary=error_summary,
+        token_count=500,
+        cost_usd=0.0,
         run_log_path=Path("/tmp/run.md"),
         tail=["line1", "line2"],
     )
@@ -307,3 +330,111 @@ class TestModelId:
         worker = make_worker()
         assert "qwen3-coder" in worker.model_id
         assert "localhost" in worker.model_id
+
+    def test_model_id_includes_runner(self) -> None:
+        assert "claude_code" in make_worker().model_id
+        assert "aider" in make_worker(runner="aider").model_id
+
+
+# ---------------------------------------------------------------------------
+# execute — aider runner path
+# ---------------------------------------------------------------------------
+
+
+class TestExecuteWithAider:
+    @pytest.mark.asyncio
+    async def test_calls_aider_not_claude(self) -> None:
+        worker = make_worker(runner="aider")
+        task = make_task()
+        ctx = make_ctx()
+
+        with (
+            patch("loomstack.agents.code_worker.create_branch", new_callable=AsyncMock),
+            patch("loomstack.agents.code_worker.run_aider", new_callable=AsyncMock) as mock_aider,
+            patch(
+                "loomstack.agents.code_worker.run_claude_code", new_callable=AsyncMock
+            ) as mock_claude,
+            patch("loomstack.agents.code_worker.commit_and_push", new_callable=AsyncMock),
+            patch("loomstack.agents.code_worker.open_pr", new_callable=AsyncMock) as mock_pr,
+        ):
+            mock_aider.return_value = make_aider_result(success=True)
+            mock_pr.return_value = "https://github.com/org/repo/pull/7"
+            result = await worker.execute(task, ctx)
+
+        assert isinstance(result, Proposed)
+        mock_aider.assert_called_once()
+        mock_claude.assert_not_called()
+        # aider never reports a PR URL — open_pr must run
+        mock_pr.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_proposed_uses_token_and_cost_from_aider(self) -> None:
+        worker = make_worker(runner="aider")
+        task = make_task()
+        ctx = make_ctx()
+
+        with (
+            patch("loomstack.agents.code_worker.create_branch", new_callable=AsyncMock),
+            patch("loomstack.agents.code_worker.run_aider", new_callable=AsyncMock) as mock_aider,
+            patch("loomstack.agents.code_worker.commit_and_push", new_callable=AsyncMock),
+            patch("loomstack.agents.code_worker.open_pr", new_callable=AsyncMock) as mock_pr,
+        ):
+            mock_aider.return_value = make_aider_result(success=True)
+            mock_pr.return_value = "https://github.com/org/repo/pull/7"
+            result = await worker.execute(task, ctx)
+
+        assert isinstance(result, Proposed)
+        assert result.token_count == 500
+        assert result.cost_usd == 0.0
+
+    @pytest.mark.asyncio
+    async def test_aider_failure_returns_failed(self) -> None:
+        worker = make_worker(runner="aider")
+        task = make_task()
+        ctx = make_ctx()
+
+        with (
+            patch("loomstack.agents.code_worker.create_branch", new_callable=AsyncMock),
+            patch("loomstack.agents.code_worker.run_aider", new_callable=AsyncMock) as mock_aider,
+        ):
+            mock_aider.return_value = make_aider_result(
+                success=False,
+                files_modified=[],
+                error_summary="No changes made to any files.",
+                exit_code=0,
+            )
+            result = await worker.execute(task, ctx)
+
+        assert isinstance(result, Failed)
+        assert "no changes" in result.error.lower()
+
+    @pytest.mark.asyncio
+    async def test_aider_push_failure_returns_failed_with_aider_cost(self) -> None:
+        """Cost from the runner is preserved when a downstream step fails."""
+        worker = make_worker(runner="aider")
+        task = make_task()
+        ctx = make_ctx()
+
+        with (
+            patch("loomstack.agents.code_worker.create_branch", new_callable=AsyncMock),
+            patch("loomstack.agents.code_worker.run_aider", new_callable=AsyncMock) as mock_aider,
+            patch(
+                "loomstack.agents.code_worker.commit_and_push", new_callable=AsyncMock
+            ) as mock_push,
+        ):
+            mock_aider.return_value = make_aider_result(success=True)
+            mock_push.side_effect = GitError("git push", 1, "rejected")
+            result = await worker.execute(task, ctx)
+
+        assert isinstance(result, Failed)
+        assert result.token_count == 500
+
+
+class TestRunnerDefault:
+    def test_default_is_claude_code(self) -> None:
+        worker = make_worker()
+        assert worker.runner == "claude_code"
+
+    def test_explicit_aider(self) -> None:
+        worker = make_worker(runner="aider")
+        assert worker.runner == "aider"
