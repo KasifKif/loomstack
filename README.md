@@ -159,17 +159,50 @@ The bootstrap prompt lives at [`BOOTSTRAP_PROMPT.md`](./BOOTSTRAP_PROMPT.md) at
 the repo root. It is self-contained so you can copy it into any new repo and
 use it without pulling in the rest of Loomstack.
 
-1. Create the new project repo (`gh repo create my-thing --private`).
-2. Copy `BOOTSTRAP_PROMPT.md` into it (or just open the file from this repo).
-3. Open a fresh **Claude Opus** chat — claude.ai or `claude` CLI.
-4. Paste the **Prompt** section (everything between the two `---` rules).
-5. Opus interviews you (~7 questions: language, deps, quality bar, etc.).
-6. Opus emits four files: `README.md`, `CLAUDE.md`, `PLAN.md`, `loomstack.yaml`.
-7. Save them in the new repo, commit, push.
-8. On the workstation: `cd` into the repo and `loomstack run`.
-9. Review PRs. Approve architect-tier tasks via `loomstack approve <task>`.
+**1. Create the new project repo and clone it.**
+
+```bash
+gh repo create my-thing --private --clone
+cd my-thing
+```
+
+**2. Copy `BOOTSTRAP_PROMPT.md` into it** (so the prompt stays with the project):
+
+```bash
+cp ~/workspace/loomstack/BOOTSTRAP_PROMPT.md .
+git add BOOTSTRAP_PROMPT.md && git commit -m "docs: add bootstrap prompt"
+```
+
+**3. Open a fresh Claude Opus chat** — claude.ai or `claude --model claude-opus-4-7`.
+
+**4. Paste from `## Prompt` through the end of the file.** Include Appendix A — Opus needs the PLAN.md schema inline to produce valid tasks. Do not stop at the first `---` divider.
+
+**5. Answer the 7 interview questions.** One-line description, language/runtime, deps, quality bar (`prototype` / `production` / `research`), architect-gated areas, v0.1 milestone, task ID prefix. Be terse — vague answers produce vague plans.
+
+**6. Opus emits four files** in fenced blocks: `README.md`, `CLAUDE.md`, `PLAN.md`, `loomstack.yaml`. Save each into the repo (overwriting the placeholder README), then:
+
+```bash
+git add README.md CLAUDE.md PLAN.md loomstack.yaml
+git commit -m "feat: initial Loomstack scaffold"
+git push
+```
+
+**7. Validate `PLAN.md` parses** before letting agents loose:
+
+```bash
+cd ~/workspace/loomstack/blueprint
+uv run python -c "from loomstack.core.plan_parser import parse_plan; from pathlib import Path; print(parse_plan(Path('/abs/path/to/my-thing/PLAN.md')))"
+```
+
+If it parses without raising, you're good.
+
+**8. Start the dispatcher** — point Weaver's project sidebar at the new repo and hit Start, or `cd` in and run the dispatcher directly.
+
+**9. Review PRs.** Approve architect-tier tasks by writing `.loomstack/approvals/<task-id>` (or via the Weaver approvals page).
 
 ~20 minutes from idea to agents running.
+
+> **Heads up:** the README's CLI section lists `loomstack init`, `loomstack parse`, `loomstack run`, `loomstack approve` — those are aspirational. Today, validation is the Python one-liner above and dispatch runs through Weaver. Direct CLI subcommands are on the roadmap.
 
 **Why Opus and not Code Worker?** Bootstrap planning needs strong reasoning over
 the whole project shape. Code Worker (Qwen) handles the tasks Opus generates,
