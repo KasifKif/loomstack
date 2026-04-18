@@ -17,7 +17,7 @@ from pydantic import BaseModel
 if TYPE_CHECKING:
     from fastapi.responses import Response
 
-from loomstack.weaver.config import WeaverSettings, get_settings
+from loomstack.weaver.config import WeaverSettings, get_active_project_dir, get_settings
 
 log = structlog.get_logger(__name__)
 
@@ -77,10 +77,15 @@ def _tier_breakdown(entries: list[dict[str, Any]]) -> dict[str, float]:
     return breakdown
 
 
-def _ledger_path(settings: WeaverSettings) -> str:
+def _ledger_path_from_dir(project_dir: str) -> str:
     from pathlib import Path
 
-    return str(Path(settings.loomstack_project_dir) / ".loomstack" / "ledger.jsonl")
+    return str(Path(project_dir) / ".loomstack" / "ledger.jsonl")
+
+
+async def _ledger_path(settings: WeaverSettings) -> str:
+    project_dir = await get_active_project_dir(settings)
+    return _ledger_path_from_dir(str(project_dir))
 
 
 # ---------------------------------------------------------------------------
@@ -119,7 +124,7 @@ async def get_budget_today(
     settings: Annotated[WeaverSettings, Depends(get_settings)],
 ) -> TodayBudgetResponse:
     """Return today's spend total and per-tier breakdown."""
-    entries = _read_ledger_entries(_ledger_path(settings))
+    entries = _read_ledger_entries(await _ledger_path(settings))
     today = datetime.now(tz=UTC).date()
     today_entries = _entries_for_day(entries, today)
     breakdown = _tier_breakdown(today_entries)
@@ -137,7 +142,7 @@ async def get_budget_history(
     days: Annotated[int, Query(ge=1, le=365)] = 30,
 ) -> list[DailyHistoryEntry]:
     """Return daily spend totals for the last N days."""
-    entries = _read_ledger_entries(_ledger_path(settings))
+    entries = _read_ledger_entries(await _ledger_path(settings))
     today = datetime.now(tz=UTC).date()
     result: list[DailyHistoryEntry] = []
     for offset in range(days - 1, -1, -1):
@@ -154,7 +159,7 @@ async def get_budget_recent(
     n: Annotated[int, Query(ge=1, le=500)] = 50,
 ) -> list[RecentChargeEntry]:
     """Return the most recent N charge entries."""
-    entries = _read_ledger_entries(_ledger_path(settings))
+    entries = _read_ledger_entries(await _ledger_path(settings))
     recent = entries[-n:] if len(entries) > n else entries
     recent.reverse()  # newest first
     return [
@@ -182,7 +187,7 @@ async def budget_page(
     settings: Annotated[WeaverSettings, Depends(get_settings)],
 ) -> Response:
     """Render the budget dashboard page."""
-    entries = _read_ledger_entries(_ledger_path(settings))
+    entries = _read_ledger_entries(await _ledger_path(settings))
     today_date = datetime.now(tz=UTC).date()
     today_entries = _entries_for_day(entries, today_date)
     breakdown = _tier_breakdown(today_entries)
@@ -224,7 +229,7 @@ async def budget_fragment(
     settings: Annotated[WeaverSettings, Depends(get_settings)],
 ) -> Response:
     """HTMX partial: re-renders the today's spend panel."""
-    entries = _read_ledger_entries(_ledger_path(settings))
+    entries = _read_ledger_entries(await _ledger_path(settings))
     today_date = datetime.now(tz=UTC).date()
     today_entries = _entries_for_day(entries, today_date)
     breakdown = _tier_breakdown(today_entries)
