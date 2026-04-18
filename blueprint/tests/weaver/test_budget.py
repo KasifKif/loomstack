@@ -121,6 +121,7 @@ def _make_client(ledger_entries: list[dict[str, Any]]) -> tuple[TestClient, Path
     app = create_app()
     app.dependency_overrides[get_settings] = lambda: WeaverSettings(
         loomstack_project_dir=str(loomstack_dir),
+        data_dir=str(loomstack_dir / ".weaver-data"),
     )
     return TestClient(app), tmp
 

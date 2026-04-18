@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, Request
 if TYPE_CHECKING:
     from fastapi.responses import Response
 
-from loomstack.weaver.config import WeaverSettings, get_settings
+from loomstack.weaver.config import WeaverSettings, get_active_project_dir, get_settings
 from loomstack.weaver.routes.budget import (
     _entries_for_day,
     _ledger_path,
@@ -109,12 +109,13 @@ async def dashboard(
     """Render the landing page with overview cards."""
     health = await fetch_gx10_status(settings.llm_base_url, settings.llm_api_key)
 
-    entries = _read_ledger_entries(_ledger_path(settings))
+    entries = _read_ledger_entries(await _ledger_path(settings))
     today_entries = _entries_for_day(entries, datetime.now(tz=UTC).date())
     breakdown = _tier_breakdown(today_entries)
     budget_total = round(sum(breakdown.values()), 4)
 
-    counts, pending_approvals = _count_tasks(settings.loomstack_project_dir)
+    project_dir = await get_active_project_dir(settings)
+    counts, pending_approvals = _count_tasks(str(project_dir))
 
     return cast(
         "Response",

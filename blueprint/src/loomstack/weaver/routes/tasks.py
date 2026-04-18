@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import re
-from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, cast
 
 import markdown2  # type: ignore[import-untyped]
@@ -14,6 +13,8 @@ from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from fastapi.responses import Response
     from fastapi.templating import Jinja2Templates
 
@@ -24,7 +25,7 @@ from loomstack.core.state import (
     derive_run_meta,
     derive_status,
 )
-from loomstack.weaver.config import WeaverSettings, get_settings
+from loomstack.weaver.config import WeaverSettings, get_active_project_dir, get_settings
 
 logger = structlog.get_logger()
 
@@ -65,7 +66,7 @@ async def list_tasks(
     """
     Return the full task list parsed from PLAN.md with current status.
     """
-    project_dir = Path(settings.loomstack_project_dir)
+    project_dir = await get_active_project_dir(settings)
     plan_path = project_dir / "PLAN.md"
 
     if not plan_path.exists():
@@ -102,7 +103,7 @@ async def get_task_detail(
     Return full details for a single task.
     """
     _validate_task_id(task_id)
-    project_dir = Path(settings.loomstack_project_dir)
+    project_dir = await get_active_project_dir(settings)
     plan_path = project_dir / "PLAN.md"
 
     if not plan_path.exists():
@@ -148,7 +149,7 @@ async def tasks_page(
     Render the task list and dependency graph page.
     """
     plan_res = await list_tasks(settings)
-    project_dir = Path(settings.loomstack_project_dir)
+    project_dir = await get_active_project_dir(settings)
     approved = _approved_task_ids(project_dir)
     templates = cast("Jinja2Templates", request.app.state.templates)
 
@@ -209,7 +210,7 @@ async def view_task_log(
     Render the run log for a task as HTML.
     """
     _validate_task_id(task_id)
-    project_dir = Path(settings.loomstack_project_dir)
+    project_dir = await get_active_project_dir(settings)
     run_file = project_dir / ".loomstack" / "runs" / f"{task_id}.md"
 
     if not run_file.exists():

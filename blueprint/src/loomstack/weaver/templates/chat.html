@@ -20,7 +20,9 @@
   const sendBtn    = document.getElementById("send-btn");
   const newBtn     = document.getElementById("new-btn");
 
-  let conversationId = crypto.randomUUID();
+  let conversationId = self.crypto.randomUUID?.()
+    ?? ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
+        (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16));
   let ws = null;
   let currentBubble = null;
 
@@ -107,7 +109,15 @@
 
   function setConnected(ok) {
     document.body.dataset.connected = ok ? "1" : "0";
-    if (!ok) appendSystem("Disconnected — reconnecting…");
+    sendBtn.dataset.connected = ok ? "1" : "0";
+    if (ok) {
+      sendBtn.textContent = "Send";
+      setInputEnabled(true);
+    } else {
+      sendBtn.textContent = "·····";
+      setInputEnabled(false);
+      appendSystem("Disconnected — reconnecting…");
+    }
   }
 
   // ---- Event listeners ----------------------------------------------------

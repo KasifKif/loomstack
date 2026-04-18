@@ -187,15 +187,61 @@ async def pull_project(
     return project
 
 
+async def _has_pending_changes(local_path: Path) -> str | None:
+    """Return a description of pending changes, or None if clean."""
+    if not (local_path / ".git").exists():
+        return None
+
+    # Check for uncommitted changes (staged + unstaged + untracked)
+    proc = await asyncio.create_subprocess_exec(
+        "git", "-C", str(local_path), "status", "--porcelain",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    if stdout.strip():
+        return "uncommitted changes"
+
+    # Check for commits ahead of remote
+    proc = await asyncio.create_subprocess_exec(
+        "git", "-C", str(local_path), "log", "--oneline", "@{u}..", "--",
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, _ = await proc.communicate()
+    if proc.returncode == 0 and stdout.strip():
+        count = len(stdout.strip().split(b"\n"))
+        return f"{count} unpushed commit(s)"
+
+    return None
+
+
 @router.delete("/api/git-projects/{id}")
 async def delete_project(
     id: str,
     request: Request,
     store: Annotated[JsonStore[Project], Depends(get_project_store)],
 ) -> Any:
-    deleted = await store.delete(id)
-    if not deleted:
+    project = await store.get(id)
+    if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+
+    # Safety check — refuse to delete if there are pending changes
+    local_path = Path(project.local_path)
+    if local_path.exists():
+        pending = await _has_pending_changes(local_path)
+        if pending:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot delete: {pending} in {project.name}. Push or discard first.",
+            )
+
+        import shutil
+
+        shutil.rmtree(local_path, ignore_errors=True)
+        logger.info("deleted_project_dir", path=str(local_path))
+
+    await store.delete(id)
 
     if request.headers.get("HX-Request"):
         return HTMLResponse(content="")

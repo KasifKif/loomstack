@@ -38,7 +38,10 @@ def client(test_plan_file: Path) -> TestClient:
     app = create_app()
 
     def override_settings() -> WeaverSettings:
-        return WeaverSettings(loomstack_project_dir=str(test_plan_file.parent))
+        return WeaverSettings(
+            loomstack_project_dir=str(test_plan_file.parent),
+            data_dir=str(test_plan_file.parent / ".weaver-data"),
+        )
 
     app.dependency_overrides[get_settings] = override_settings
     return TestClient(app)
@@ -161,7 +164,10 @@ def test_list_tasks_not_found(test_plan_file: Path) -> None:
     empty_dir.mkdir()
 
     def override_settings() -> WeaverSettings:
-        return WeaverSettings(loomstack_project_dir=str(empty_dir))
+        return WeaverSettings(
+            loomstack_project_dir=str(empty_dir),
+            data_dir=str(empty_dir / ".weaver-data"),
+        )
 
     app.dependency_overrides[get_settings] = override_settings
     client = TestClient(app)
@@ -176,7 +182,10 @@ def test_list_tasks_missing_loomstack_dir(test_plan_file: Path) -> None:
 
     def override_settings() -> WeaverSettings:
         # test_plan_file.parent exists but has no .loomstack/
-        return WeaverSettings(loomstack_project_dir=str(test_plan_file.parent))
+        return WeaverSettings(
+            loomstack_project_dir=str(test_plan_file.parent),
+            data_dir=str(test_plan_file.parent / ".weaver-data"),
+        )
 
     app.dependency_overrides[get_settings] = override_settings
     client = TestClient(app)
@@ -196,7 +205,10 @@ def test_list_tasks_parse_error(tmp_path: Path) -> None:
     app = create_app()
 
     def override_settings() -> WeaverSettings:
-        return WeaverSettings(loomstack_project_dir=str(tmp_path))
+        return WeaverSettings(
+            loomstack_project_dir=str(tmp_path),
+            data_dir=str(tmp_path / ".weaver-data"),
+        )
 
     app.dependency_overrides[get_settings] = override_settings
     client = TestClient(app)

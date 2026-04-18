@@ -30,7 +30,10 @@ def client(test_plan_file: Path) -> TestClient:
     app = create_app()
 
     def override_settings() -> WeaverSettings:
-        return WeaverSettings(loomstack_project_dir=str(test_plan_file.parent))
+        return WeaverSettings(
+            loomstack_project_dir=str(test_plan_file.parent),
+            data_dir=str(test_plan_file.parent / ".weaver-data"),
+        )
 
     app.dependency_overrides[get_settings] = override_settings
     return TestClient(app)

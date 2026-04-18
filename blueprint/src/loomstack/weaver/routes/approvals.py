@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import Annotated
 
 import structlog
@@ -13,7 +12,7 @@ from pydantic import BaseModel
 
 from loomstack.core.plan_parser import PlanParseError, parse_plan_file
 from loomstack.core.state import approval_marker_path, is_approved
-from loomstack.weaver.config import WeaverSettings, get_settings
+from loomstack.weaver.config import WeaverSettings, get_active_project_dir, get_settings
 
 logger = structlog.get_logger()
 
@@ -51,7 +50,7 @@ async def approve_task(
     Returns HTML badge when called from HTMX, JSON otherwise.
     """
     _validate_task_id(task_id)
-    project_dir = Path(settings.loomstack_project_dir)
+    project_dir = await get_active_project_dir(settings)
     loomstack_dir = project_dir / ".loomstack"
     marker = approval_marker_path(task_id, loomstack_dir)
 
@@ -82,7 +81,7 @@ async def list_pending_approvals(
     """
     Return a list of tasks that require human_review but haven't been approved.
     """
-    project_dir = Path(settings.loomstack_project_dir)
+    project_dir = await get_active_project_dir(settings)
     plan_path = project_dir / "PLAN.md"
 
     if not plan_path.exists():

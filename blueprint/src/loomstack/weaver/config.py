@@ -45,8 +45,11 @@ def parse_project_dirs(settings: WeaverSettings) -> dict[str, str]:
     """
     dirs: dict[str, str] = {}
     primary = settings.loomstack_project_dir
-    primary_name = Path(primary).name or "project"
-    dirs[primary_name] = primary
+    if primary != ".":
+        primary_path = Path(primary).resolve()
+        primary_name = primary_path.name
+        if primary_name:
+            dirs[primary_name] = str(primary_path)
     raw = settings.loomstack_project_dirs.strip()
     if raw:
         for entry in raw.split(","):
@@ -57,6 +60,25 @@ def parse_project_dirs(settings: WeaverSettings) -> dict[str, str]:
             if name not in dirs:
                 dirs[name] = entry
     return dirs
+
+
+async def get_active_project_dir(settings: WeaverSettings) -> Path:
+    """Return the active git project's local_path, or fall back to the setting.
+
+    Checks the git-projects store for an active project first. If none is
+    active (or the store doesn't exist yet), falls back to
+    ``settings.loomstack_project_dir``.
+    """
+    from loomstack.weaver.routes.git_projects import Project
+    from loomstack.weaver.store import JsonStore
+
+    data_dir = get_data_dir(settings)
+    store: JsonStore[Project] = JsonStore(data_dir, "projects.json", Project)
+    projects = await store.load_all()
+    active = next((p for p in projects.values() if p.is_active), None)
+    if active is not None:
+        return Path(active.local_path)
+    return Path(settings.loomstack_project_dir)
 
 
 @functools.lru_cache(maxsize=1)
