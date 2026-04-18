@@ -92,7 +92,7 @@ Loomstack refuses to run if any of the four top-level files are missing or inval
 
 ```
 loomstack/
-├── README.md  CLAUDE.md
+├── README.md  CLAUDE.md  BOOTSTRAP_PROMPT.md
 ├── blueprint/                   ← Python package
 │   ├── pyproject.toml
 │   └── src/loomstack/
@@ -101,9 +101,8 @@ loomstack/
 │       ├── weaver/              ← FastAPI dashboard (routes, templates, static)
 │       └── runner.py            ← entry point
 ├── bootstrap/                   ← authoring pack (docs, shipped as data)
-│   ├── INFRA_SPEC.md  PROJECT_CONTRACT.md  PLAN_SCHEMA.md
-│   ├── ESCALATION_RULES.md  BOOTSTRAP_PROMPT.md
-│   └── EXAMPLES/
+│   ├── PLAN_SCHEMA.md  ROADMAP.md
+│   └── (INFRA_SPEC, PROJECT_CONTRACT, ESCALATION_RULES — planned)
 ├── templates/project/           ← 4-file scaffold copied by `loomstack init`
 └── tests/
 ```
@@ -156,15 +155,30 @@ Weaver is read-only for project state (it never modifies `PLAN.md` or pushes cod
 
 ## Bootstrap Flow
 
-1. Have an idea.
-2. Copy the bootstrap prompt from `bootstrap/BOOTSTRAP_PROMPT.md`.
-3. Paste into Claude Code with your idea.
-4. Claude Code reads the bootstrap pack, asks ~5 scoping questions, generates the four files.
-5. Commit, push to GitHub.
-6. On the Ubuntu workstation: `git clone`, `cd`, `loomstack run`.
-7. Review PRs. Approve architect tasks. Repeat.
+The bootstrap prompt lives at [`BOOTSTRAP_PROMPT.md`](./BOOTSTRAP_PROMPT.md) at
+the repo root. It is self-contained so you can copy it into any new repo and
+use it without pulling in the rest of Loomstack.
+
+1. Create the new project repo (`gh repo create my-thing --private`).
+2. Copy `BOOTSTRAP_PROMPT.md` into it (or just open the file from this repo).
+3. Open a fresh **Claude Opus** chat — claude.ai or `claude` CLI.
+4. Paste the **Prompt** section (everything between the two `---` rules).
+5. Opus interviews you (~7 questions: language, deps, quality bar, etc.).
+6. Opus emits four files: `README.md`, `CLAUDE.md`, `PLAN.md`, `loomstack.yaml`.
+7. Save them in the new repo, commit, push.
+8. On the workstation: `cd` into the repo and `loomstack run`.
+9. Review PRs. Approve architect-tier tasks via `loomstack approve <task>`.
 
 ~20 minutes from idea to agents running.
+
+**Why Opus and not Code Worker?** Bootstrap planning needs strong reasoning over
+the whole project shape. Code Worker (Qwen) handles the tasks Opus generates,
+but is too small-context for the planning step itself.
+
+**When to re-run the prompt.** Only at project birth. Once `PLAN.md` exists,
+edit it directly — re-running the prompt would clobber task IDs and history.
+For mid-project replanning, ask Opus to "extend the existing PLAN.md with
+tasks for X, preserving all existing IDs."
 
 ## Quick Start
 
